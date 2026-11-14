@@ -3,6 +3,10 @@
 Première application du catalogue Windows : un moniteur local, sans compte ni télémétrie distante, conçu pour Windows 10 et 11.
 Sa fiche Microsoft Store est réservée sous le nom **PC Monitor Pro Premium** (ID `9P34JVNCWKJJ`).
 
+![Tableau de bord PC Monitor Pro Premium](docs/screenshots/dashboard-example.png)
+
+*Illustration avec des valeurs de démonstration fictives.*
+
 ## État du projet
 
 - Version 0.2.2 : EXE de test x64 généré localement et configuré pour ouvrir la fiche Store ci-dessus. Le MSIX précédent conserve l’identité de développement `PCMonitorPro.Local` et n’est pas distribuable.
