@@ -6,6 +6,7 @@ Sa fiche Microsoft Store est réservée sous le nom **PC Monitor Pro Premium** (
 ## État du projet
 
 - Version 0.2.2 : EXE de test x64 généré localement et configuré pour ouvrir la fiche Store ci-dessus. Le MSIX précédent conserve l’identité de développement `PCMonitorPro.Local` et n’est pas distribuable.
+- Première préversion publique : [télécharger l’EXE x64 v0.2.0](https://github.com/loictinant/PC-Monitor-Pro-Premium/releases/download/v0.2.0/PCMonitorPro.exe). Le binaire n’est pas signé et est réservé aux essais.
 - Modèle choisi : achat unique dans le Microsoft Store. Le code lit l’entitlement d’un module Pro durable dans l’application packagée; l’EXE renvoie vers la fiche Store et reste gratuit.
 - L’EXE ouvre la fiche Store. Le module Premium durable existe en brouillon (ID Store `9MTVFWCM41XS`); son prix de 1,99 €, sa fiche française et ses propriétés sont enregistrés. La soumission attend la publication de l’application parente et la mise à jour du profil fiscal/paiement du compte vendeur. Aucun achat ni aucune publication Store n’a été effectué.
 - L’offre Premium à achat unique regroupe les fonctions marquées `(PRO)`. Les alertes sont les seules actuellement prêtes; l’historique persistant, les graphiques avancés, l’export CSV et les capteurs GPU/température restent à développer et valider.
