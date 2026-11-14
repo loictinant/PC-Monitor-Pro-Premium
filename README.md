@@ -4,6 +4,10 @@ Application Windows de surveillance locale, conçue avec C#, WinUI 3 et .NET 10 
 
 Le projet se trouve dans le dossier [`Windows/`](Windows/). Il affiche l’utilisation du processeur, de la mémoire, des disques et du réseau. Les mesures sont collectées localement, sans compte ni télémétrie distante.
 
+![Tableau de bord PC Monitor Pro Premium](Windows/docs/screenshots/dashboard-example.png)
+
+*Illustration avec des valeurs de démonstration fictives.*
+
 ## État
 
 - Version de travail : 0.2.2 ; l’EXE x64 est destiné aux essais.
