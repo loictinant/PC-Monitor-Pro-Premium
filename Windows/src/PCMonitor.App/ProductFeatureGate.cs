@@ -16,10 +16,14 @@ internal static class ProductFeatures
 /// </summary>
 internal sealed class ProductFeatureGate : IFeatureGate
 {
-    // Only alerts are implemented in this build. Add a feature here when its behavior ships.
+    // Features are released only after their UI, local behavior, and licensing check are implemented.
     private static readonly HashSet<string> ImplementedProFeatures =
     [
-        ProductFeatures.Alerts
+        ProductFeatures.Alerts,
+        ProductFeatures.PersistentHistory,
+        ProductFeatures.CsvExport,
+        ProductFeatures.AdvancedCharts,
+        ProductFeatures.HardwareSensors
     ];
 
     public bool IsEnabled(string featureId, LicenseState license) =>
@@ -32,9 +36,18 @@ internal sealed class ProductFeatureGate : IFeatureGate
 
 internal static class DevelopmentLicense
 {
+#if PCMONITORPRO_PREMIUM_TEST
+    public static LicenseState Current { get; } = new(
+        "PCMonitorPro",
+        LicenseTier.Pro,
+        LicenseSource.ExternalLicense,
+        CheckedAt: DateTimeOffset.UtcNow,
+        ExpiresAt: null);
+#else
     public static LicenseState Current { get; } = new(
         "PCMonitorPro",
         LicenseTier.Free,
         LicenseSource.None,
         DateTimeOffset.UtcNow);
+#endif
 }

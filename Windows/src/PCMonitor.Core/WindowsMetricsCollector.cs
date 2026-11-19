@@ -5,14 +5,14 @@ using System.Runtime.Versioning;
 namespace PCMonitor.Core;
 
 [SupportedOSPlatform("windows")]
-public sealed class WindowsMetricsCollector : IMetricsCollector
+public sealed class WindowsMetricsCollector : IMetricsCollector, IDisposable
 {
+    private readonly Dictionary<string, NetworkCounterState> _previousNetworkById = new(StringComparer.OrdinalIgnoreCase);
+    private readonly PdhDiskActivityReader _diskActivityReader = new();
+    private readonly LibreHardwareMetricsReader _hardwareReader = new();
     private ulong? _previousIdle;
     private ulong? _previousKernel;
     private ulong? _previousUser;
-    private ulong? _previousReceived;
-    private ulong? _previousSent;
-    private DateTimeOffset? _previousNetworkTime;
 
     public Task<MetricSnapshot> CollectAsync(CancellationToken cancellationToken = default)
     {
@@ -23,6 +23,8 @@ public sealed class WindowsMetricsCollector : IMetricsCollector
         var memory = ReadMemory();
         var network = ReadNetworkRates(capturedAt);
         var disks = ReadDisks();
+        var diskActivity = _diskActivityReader.Read();
+        var hardware = _hardwareReader.Read();
 
         return Task.FromResult(new MetricSnapshot(
             capturedAt,
@@ -31,7 +33,17 @@ public sealed class WindowsMetricsCollector : IMetricsCollector
             memory?.AvailableBytes,
             network.DownloadBytesPerSecond,
             network.UploadBytesPerSecond,
-            disks));
+            disks,
+            network.Interfaces,
+            diskActivity.ReadBytesPerSecond,
+            diskActivity.WriteBytesPerSecond,
+            hardware));
+    }
+
+    public void Dispose()
+    {
+        _diskActivityReader.Dispose();
+        _hardwareReader.Dispose();
     }
 
     private double? ReadCpuUsage()
@@ -74,10 +86,13 @@ public sealed class WindowsMetricsCollector : IMetricsCollector
             : null;
     }
 
-    private (double DownloadBytesPerSecond, double UploadBytesPerSecond) ReadNetworkRates(DateTimeOffset capturedAt)
+    private (double DownloadBytesPerSecond, double UploadBytesPerSecond, IReadOnlyList<NetworkInterfaceSnapshot> Interfaces)
+        ReadNetworkRates(DateTimeOffset capturedAt)
     {
-        ulong received = 0;
-        ulong sent = 0;
+        var interfaces = new List<NetworkInterfaceSnapshot>();
+        var currentIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var downloadRate = 0d;
+        var uploadRate = 0d;
 
         foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
         {
@@ -90,8 +105,31 @@ public sealed class WindowsMetricsCollector : IMetricsCollector
             try
             {
                 var statistics = networkInterface.GetIPv4Statistics();
-                received += unchecked((ulong)Math.Max(0, statistics.BytesReceived));
-                sent += unchecked((ulong)Math.Max(0, statistics.BytesSent));
+                var received = unchecked((ulong)Math.Max(0, statistics.BytesReceived));
+                var sent = unchecked((ulong)Math.Max(0, statistics.BytesSent));
+                var id = networkInterface.Id;
+                currentIds.Add(id);
+
+                var interfaceDownload = 0d;
+                var interfaceUpload = 0d;
+                if (_previousNetworkById.TryGetValue(id, out var previous))
+                {
+                    var elapsedSeconds = (capturedAt - previous.CapturedAt).TotalSeconds;
+                    if (elapsedSeconds > 0)
+                    {
+                        interfaceDownload = Delta(received, previous.ReceivedBytes) / elapsedSeconds;
+                        interfaceUpload = Delta(sent, previous.SentBytes) / elapsedSeconds;
+                    }
+                }
+
+                _previousNetworkById[id] = new NetworkCounterState(received, sent, capturedAt);
+                downloadRate += interfaceDownload;
+                uploadRate += interfaceUpload;
+                interfaces.Add(new NetworkInterfaceSnapshot(
+                    id,
+                    string.IsNullOrWhiteSpace(networkInterface.Name) ? networkInterface.Description : networkInterface.Name,
+                    interfaceDownload,
+                    interfaceUpload));
             }
             catch (NetworkInformationException)
             {
@@ -103,25 +141,12 @@ public sealed class WindowsMetricsCollector : IMetricsCollector
             }
         }
 
-        var downloadRate = 0d;
-        var uploadRate = 0d;
-
-        if (_previousReceived is ulong previousReceived &&
-            _previousSent is ulong previousSent &&
-            _previousNetworkTime is DateTimeOffset previousTime)
+        foreach (var staleId in _previousNetworkById.Keys.Where(id => !currentIds.Contains(id)).ToArray())
         {
-            var elapsedSeconds = (capturedAt - previousTime).TotalSeconds;
-            if (elapsedSeconds > 0)
-            {
-                downloadRate = Delta(received, previousReceived) / elapsedSeconds;
-                uploadRate = Delta(sent, previousSent) / elapsedSeconds;
-            }
+            _previousNetworkById.Remove(staleId);
         }
 
-        _previousReceived = received;
-        _previousSent = sent;
-        _previousNetworkTime = capturedAt;
-        return (downloadRate, uploadRate);
+        return (downloadRate, uploadRate, interfaces.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
     }
 
     private static IReadOnlyList<DiskVolumeSnapshot> ReadDisks()
@@ -165,6 +190,8 @@ public sealed class WindowsMetricsCollector : IMetricsCollector
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx buffer);
+
+    private sealed record NetworkCounterState(ulong ReceivedBytes, ulong SentBytes, DateTimeOffset CapturedAt);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct FileTime

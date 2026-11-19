@@ -1,41 +1,52 @@
 # PC Monitor Pro Premium
 
-Première application du catalogue Windows : un moniteur local, sans compte ni télémétrie distante, conçu pour Windows 10 et 11.
-Sa fiche Microsoft Store est réservée sous le nom **PC Monitor Pro Premium** (ID `9P34JVNCWKJJ`).
+Moniteur système local pour Windows 10/11, construit en C# avec WinUI 3. La version gratuite suit CPU, mémoire, volumes, activité disque et réseau. L’achat unique Microsoft Store débloque l’historique local 24 h, les graphiques avancés, l’export CSV, les alertes configurables et les capteurs matériels pris en charge.
 
-![Tableau de bord PC Monitor Pro Premium](docs/screenshots/dashboard-example.png)
+## Version 0.3.0
 
-*Illustration avec des valeurs de démonstration fictives.*
+### Gratuit
 
-## État du projet
+- Tableau de bord CPU, mémoire vive, volumes fixes et réseau.
+- Débits réseau totaux et par adaptateur actif.
+- Activité disque globale en lecture et écriture.
+- Graphique de session CPU sur les 15 dernières minutes, intervalle de 1, 2, 5 ou 10 secondes.
+- Thème automatique/clair/sombre, démarrage avec Windows et réduction dans la zone de notification.
 
-- Version 0.2.2 : EXE de test x64 généré localement et configuré pour ouvrir la fiche Store ci-dessus. Le MSIX précédent conserve l’identité de développement `PCMonitorPro.Local` et n’est pas distribuable.
-- Première préversion publique : [télécharger l’EXE x64 v0.2.0](https://github.com/loictinant/PC-Monitor-Pro-Premium/releases/download/v0.2.0/PCMonitorPro.exe). Le binaire n’est pas signé et est réservé aux essais.
-- Modèle choisi : achat unique dans le Microsoft Store. Le code lit l’entitlement d’un module Pro durable dans l’application packagée; l’EXE renvoie vers la fiche Store et reste gratuit.
-- L’EXE ouvre la fiche Store. Le module Premium durable existe en brouillon (ID Store `9MTVFWCM41XS`); son prix de 1,99 €, sa fiche française et ses propriétés sont enregistrés. La soumission attend la publication de l’application parente et la mise à jour du profil fiscal/paiement du compte vendeur. Aucun achat ni aucune publication Store n’a été effectué.
-- L’offre Premium à achat unique regroupe les fonctions marquées `(PRO)`. Les alertes sont les seules actuellement prêtes; l’historique persistant, les graphiques avancés, l’export CSV et les capteurs GPU/température restent à développer et valider.
+### Premium (PRO)
 
-## Ouvrir et essayer
+- Alertes personnalisées CPU, mémoire et espace disque, avec délai de déclenchement, délai entre répétitions et heures calmes facultatives (22 h–7 h).
+- Historique local jusqu’à 24 heures et graphiques CPU, mémoire, réseau et disque sur 1 h, 6 h ou 24 h.
+- Export CSV de la période sélectionnée.
+- Charge GPU, mémoire vidéo, températures CPU/GPU et ventilateurs lorsque le matériel, les pilotes et les permissions les exposent.
 
-Prérequis : Windows 10 build 17763 ou ultérieur, .NET 10 SDK, Visual Studio 2026 avec la charge de travail **Développement d'applications WinUI**, les outils Windows SDK 10.0.26100 et le mode développeur Windows activé. Le projet peut aussi se compiler via le SDK .NET en ligne de commande si les outils Windows App SDK/MSIX sont présents. Le minimum technique 17763 ne signifie pas que chaque édition de Windows 10 reste prise en charge par Microsoft ; la compatibilité sur les postes réellement visés doit être validée avant publication.
+L’EXE autonome est gratuit et dirige vers la fiche Store pour l’offre Premium. Les fonctions GPU et température ne sont pas garanties sur tous les PC; l’application n’élève pas ses droits automatiquement. Les relevés et l’historique restent sur l’appareil.
 
-1. Ouvrir `PCMonitorPro.sln` dans Visual Studio.
-2. Choisir `PCMonitor.App` et lancer en configuration Debug pour démarrer l’application.
-3. Pour produire l’EXE autonome de test x64, exécuter `scripts/Build-Exe.ps1`. Le fichier sera créé dans `artifacts/PCMonitorPro-exe-x64-v0.2.2/PCMonitorPro.exe` et son lien Premium ouvrira la fiche Microsoft Store réservée.
-4. `scripts/Build-Msix.ps1` génère un MSIX local non signé pour validation de structure. Il faut l’identité Partner Center et la signature adaptées avant toute installation de test certifiée ou distribution.
+## Compiler et essayer
 
-L'EXE autonome embarque .NET et Windows App SDK. Au premier démarrage, la publication mono-fichier extrait des composants dans le dossier temporaire Windows ; ce n'est pas un binaire sans dépendances ni extraction.
+Prérequis : Windows 10 build 17763 ou ultérieur, .NET 10 SDK et Visual Studio avec la charge de travail **Développement d’applications WinUI** et les outils Windows SDK/MSIX.
+
+```powershell
+dotnet build PCMonitorPro.sln --configuration Release
+.\scripts\Build-Exe.ps1
+.\scripts\Build-Exe.ps1 -PremiumTest
+.\scripts\Build-Msix.ps1
+```
+
+Les sorties sont créées dans `artifacts/`. L’EXE Premium de test simule une licence locale; il ne réalise pas d’achat et ne doit pas être distribué. Le `.msixupload` est la sortie destinée à Partner Center; un paquet de test local signé séparément peut être produit avec les scripts `Sign-Test-Msix.ps1` et `Install-Test-Msix.ps1`.
 
 ## Structure
 
 ```text
-docs/                              Cahier des charges, architecture, validation
-src/PCMonitor.Core/                Mesures et historique indépendant de l'interface
-src/ProductLicensing.Abstractions/ Contrats de licence réutilisables entre produits
-src/PCMonitor.App/                 Interface WinUI 3 et intégration Windows
-scripts/                           Génération de l'EXE et du MSIX
+src/PCMonitor.Core/                Collecte Windows et historique typé
+src/ProductLicensing.Abstractions/ Contrats de licence réutilisables
+src/PCMonitor.App/                 Interface WinUI 3, paramètres et intégrations Windows
+scripts/                           Compilation EXE/MSIX et installation d’essai
+docs/                              Architecture, confidentialité et distribution
+CHANGELOG.md                       Historique du projet, non affiché dans l’application
 ```
 
-La documentation de validation avant distribution est dans [docs/VALIDATION_AVANT_DISTRIBUTION.md](docs/VALIDATION_AVANT_DISTRIBUTION.md).
-Le journal des versions est dans [CHANGELOG.md](CHANGELOG.md) et est également affiché dans l’application.
-Le flux d’achat Microsoft Store et les identifiants nécessaires sont décrits dans [docs/LICENCE_MICROSOFT_STORE.md](docs/LICENCE_MICROSOFT_STORE.md).
+La bibliothèque LibreHardwareMonitor est utilisée pour les capteurs facultatifs. Sa licence MPL-2.0 et les avis tiers sont fournis dans `src/PCMonitor.App/Assets/`.
+
+## Distribution
+
+Le produit Microsoft Store est identifié par `9P34JVNCWKJJ`; l’extension Premium durable par `9MTVFWCM41XS`. Le Store gère le paiement et la licence de l’extension. Aucune clé de signature privée n’est stockée dans le dépôt. La validation avant distribution figure dans [docs/VALIDATION_AVANT_DISTRIBUTION.md](docs/VALIDATION_AVANT_DISTRIBUTION.md), et la conception dans [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

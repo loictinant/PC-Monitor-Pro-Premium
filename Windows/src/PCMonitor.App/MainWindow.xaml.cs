@@ -9,7 +9,11 @@ using H.NotifyIcon;
 using PCMonitor.Core;
 using ProductLicensing.Abstractions;
 using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 using System.Windows.Input;
+using Windows.Storage;
+using Windows.Storage.Pickers;
 using Windows.UI;
 
 namespace PCMonitor.App;
@@ -17,9 +21,10 @@ namespace PCMonitor.App;
 public sealed partial class MainWindow : Window
 {
     private const int MaximumHistorySamples = 900;
-    private const int VisibleChartSamples = 60;
+    private static readonly TimeSpan SessionChartDuration = TimeSpan.FromMinutes(15);
     private readonly IMetricsCollector _metricsCollector = new WindowsMetricsCollector();
     private readonly MetricsHistory _history = new();
+    private readonly PersistentMetricsHistory _premiumHistory = new();
     private readonly AppSettings _settings = new();
     private readonly AlertEvaluator _alertEvaluator = new();
     private readonly AlertNotificationService _alertNotifications = new();
@@ -42,7 +47,12 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+#if PCMONITORPRO_PREMIUM_TEST
+        Title = "PC Monitor Pro Premium — TEST";
+#else
         Title = "PC Monitor Pro Premium";
+#endif
+        HistoryRangeComboBox.SelectedIndex = 2;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         _licenseProvider = new MicrosoftStoreLicenseProvider(
             this,
@@ -51,7 +61,6 @@ public sealed partial class MainWindow : Window
         ApplyTheme(_settings.Theme);
         SelectThemeChoice(_settings.Theme);
         WindowRoot.ActualThemeChanged += OnActualThemeChanged;
-        LoadVersionHistory();
 
         _trayIcon = CreateTrayIcon();
         WindowRoot.Children.Add(_trayIcon);
@@ -106,6 +115,12 @@ public sealed partial class MainWindow : Window
             _lastSnapshot = snapshot;
             _history.Add(snapshot, MaximumHistorySamples);
             UpdateDashboard(snapshot);
+            UpdateTrayTooltip(snapshot);
+            if (IsProFeatureEnabled(ProductFeatures.PersistentHistory))
+            {
+                await _premiumHistory.RecordAsync(snapshot);
+                UpdateHistoryView();
+            }
             if (IsProFeatureEnabled(ProductFeatures.Alerts))
             {
                 foreach (var alert in _alertEvaluator.Evaluate(snapshot, _settings.Alerts))
@@ -156,7 +171,9 @@ public sealed partial class MainWindow : Window
             var busiestDisk = snapshot.Disks.OrderByDescending(disk => disk.UsedPercent).First();
             DiskValueText.Text = $"{busiestDisk.UsedPercent:0}%";
             DiskProgressBar.Value = Math.Clamp(busiestDisk.UsedPercent, 0, 100);
-            DiskDetailText.Text = $"{busiestDisk.Name} · {FormatBytes(busiestDisk.FreeBytes)} libres";
+            var readRate = snapshot.DiskReadBytesPerSecond is double read ? $"lecture {FormatBytesPerSecond(read)}/s" : "lecture indisponible";
+            var writeRate = snapshot.DiskWriteBytesPerSecond is double write ? $"écriture {FormatBytesPerSecond(write)}/s" : "écriture indisponible";
+            DiskDetailText.Text = $"{busiestDisk.Name} · {FormatBytes(busiestDisk.FreeBytes)} libres · {readRate} · {writeRate}";
         }
         else
         {
@@ -167,18 +184,23 @@ public sealed partial class MainWindow : Window
 
         DownloadValueText.Text = $"{FormatBytesPerSecond(snapshot.DownloadBytesPerSecond)} /s";
         UploadValueText.Text = $"{FormatBytesPerSecond(snapshot.UploadBytesPerSecond)} /s";
+        NetworkAdaptersText.Text = snapshot.NetworkInterfaces.Count == 0
+            ? "Aucun adaptateur actif"
+            : string.Join("\n", snapshot.NetworkInterfaces.Take(2).Select(network =>
+                $"{network.Name}: ↓ {FormatBytesPerSecond(network.DownloadBytesPerSecond)} /s · ↑ {FormatBytesPerSecond(network.UploadBytesPerSecond)} /s"));
         ChartCurrentText.Text = snapshot.CpuUsagePercent is double chartCpu ? $"{chartCpu:0}%" : "—";
-        var chartSamples = _history.GetLatest(VisibleChartSamples);
+        var chartSamples = _history.GetSince(DateTimeOffset.UtcNow - SessionChartDuration);
         var chartSeconds = chartSamples.Count < 2
             ? 0
             : (int)(chartSamples[^1].CapturedAt - chartSamples[0].CapturedAt).TotalSeconds;
         ChartTimeRangeText.Text = chartSeconds == 0
             ? "Collecte de l’historique…"
-            : $"Dernières {FormatDuration(chartSeconds)}";
+            : $"15 min · {FormatDuration(chartSeconds)} collectées";
         LastUpdatedText.Text = $"Dernier relevé : {snapshot.CapturedAt.ToLocalTime():HH:mm:ss} · intervalle de {_settings.RefreshIntervalSeconds} s";
 
         UpdateDiskList(snapshot.Disks);
         DrawCpuChart();
+        UpdateHistoryView();
     }
 
     private void UpdateDiskList(IReadOnlyList<DiskVolumeSnapshot> disks)
@@ -253,7 +275,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var samples = _history.GetLatest(VisibleChartSamples)
+        var samples = _history.GetSince(DateTimeOffset.UtcNow - SessionChartDuration)
             .Where(sample => sample.CpuUsagePercent.HasValue)
             .ToArray();
         for (var i = 1; i <= 3; i++)
@@ -291,6 +313,304 @@ public sealed partial class MainWindow : Window
             StrokeLineJoin = PenLineJoin.Round
         });
     }
+
+    private void UpdateTrayTooltip(MetricSnapshot snapshot)
+    {
+        var cpu = snapshot.CpuUsagePercent is double cpuPercent ? $"CPU {cpuPercent:0}%" : "CPU —";
+        var memory = snapshot.MemoryUsagePercent is double memoryPercent ? $"RAM {memoryPercent:0}%" : "RAM —";
+        _trayIcon.ToolTipText = $"PC Monitor Pro · {cpu} · {memory} · ↓ {FormatBytesPerSecond(snapshot.DownloadBytesPerSecond)}/s";
+    }
+
+    private TimeSpan GetHistoryRange()
+    {
+        var hours = GetSelectedTag(HistoryRangeComboBox, 24);
+        return TimeSpan.FromHours(hours is 1 or 6 or 24 ? hours : 24);
+    }
+
+    private void OnHistoryRangeChanged(object sender, SelectionChangedEventArgs args) => UpdateHistoryView();
+
+    private void UpdateHistoryView()
+    {
+        if (!IsProFeatureEnabled(ProductFeatures.PersistentHistory))
+        {
+            HistoryStatusText.Text = "Fonction incluse dans Premium (PRO). Sélectionne-la pour afficher l’offre Microsoft Store.";
+            HardwareSensorsText.Text = "Les capteurs matériels sont disponibles avec Premium (PRO).";
+            HistoryCpuCanvas.Children.Clear();
+            HistoryMemoryCanvas.Children.Clear();
+            HistoryNetworkCanvas.Children.Clear();
+            HistoryDiskCanvas.Children.Clear();
+            HistoryCpuSummaryText.Text = "Verrouillé (PRO)";
+            HistoryMemorySummaryText.Text = "Verrouillé (PRO)";
+            HistoryNetworkSummaryText.Text = "Verrouillé (PRO)";
+            HistoryDiskSummaryText.Text = "Verrouillé (PRO)";
+            return;
+        }
+
+        var samples = _premiumHistory.GetLatest(GetHistoryRange());
+        HistoryStatusText.Text = samples.Count == 0
+            ? "Collecte locale activée · les relevés sont conservés jusqu’à 24 h sur cet appareil."
+            : $"{samples.Count:N0} relevés locaux · conservation maximale 24 h · dernière mesure {samples[^1].CapturedAt.ToLocalTime():HH:mm:ss}";
+
+        SetHistorySummary(HistoryCpuSummaryText, samples, sample => sample.CpuUsagePercent);
+        SetHistorySummary(HistoryMemorySummaryText, samples, sample => sample.MemoryUsagePercent);
+        SetRateSummary(HistoryNetworkSummaryText, samples, sample => sample.DownloadBytesPerSecond, sample => sample.UploadBytesPerSecond);
+        SetRateSummary(HistoryDiskSummaryText, samples, sample => sample.DiskReadBytesPerSecond, sample => sample.DiskWriteBytesPerSecond);
+        DrawHistoryMetric(HistoryCpuCanvas, samples, sample => sample.CpuUsagePercent, Color.FromArgb(255, 99, 214, 189));
+        DrawHistoryMetric(HistoryMemoryCanvas, samples, sample => sample.MemoryUsagePercent, Color.FromArgb(255, 100, 160, 255));
+        DrawHistoryRates(HistoryNetworkCanvas, samples, sample => sample.DownloadBytesPerSecond, sample => sample.UploadBytesPerSecond);
+        DrawHistoryRates(HistoryDiskCanvas, samples, sample => sample.DiskReadBytesPerSecond, sample => sample.DiskWriteBytesPerSecond);
+        UpdateHardwareSensorSummary(_lastSnapshot?.Hardware);
+    }
+
+    private static void SetHistorySummary(TextBlock target, IReadOnlyList<MetricSample> samples, Func<MetricSample, double?> metric)
+    {
+        var values = samples.Select(metric).Where(value => value.HasValue).Select(value => value!.Value).ToArray();
+        target.Text = values.Length == 0 ? "En attente des relevés" : $"Moyenne {values.Average():0}% · dernier {values[^1]:0}%";
+    }
+
+    private void DrawHistoryMetric(Canvas canvas, IReadOnlyList<MetricSample> samples, Func<MetricSample, double?> metric, Color color)
+    {
+        canvas.Children.Clear();
+        var width = canvas.ActualWidth;
+        var height = canvas.ActualHeight;
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        for (var line = 1; line <= 3; line++)
+        {
+            var y = height * line / 4;
+            canvas.Children.Add(new Line
+            {
+                X1 = 0,
+                X2 = width,
+                Y1 = y,
+                Y2 = y,
+                Stroke = GetThemeBrush("ChartGridBrush"),
+                StrokeThickness = 1
+            });
+        }
+
+        var values = samples.Select(sample => metric(sample)).ToArray();
+        if (values.Count(value => value.HasValue) < 2)
+        {
+            return;
+        }
+
+        var points = new PointCollection();
+        for (var index = 0; index < values.Length; index++)
+        {
+            var value = values[index];
+            if (value is null)
+            {
+                continue;
+            }
+
+            var x = width * index / Math.Max(1, values.Length - 1);
+            var y = height - Math.Clamp(value.Value, 0, 100) / 100 * height;
+            points.Add(new Windows.Foundation.Point(x, y));
+        }
+
+        canvas.Children.Add(new Polyline
+        {
+            Points = points,
+            Stroke = new SolidColorBrush(color),
+            StrokeThickness = 2.5,
+            StrokeLineJoin = PenLineJoin.Round
+        });
+    }
+
+    private static void SetRateSummary(TextBlock target, IReadOnlyList<MetricSample> samples, Func<MetricSample, double?> first, Func<MetricSample, double?> second)
+    {
+        if (samples.Count == 0)
+        {
+            target.Text = "En attente des relevés";
+            return;
+        }
+
+        var latest = samples[^1];
+        var latestFirst = first(latest);
+        var latestSecond = second(latest);
+        var maximum = samples.SelectMany(sample => new[] { first(sample), second(sample) })
+            .Where(value => value.HasValue)
+            .Select(value => value!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
+        target.Text = $"Max {FormatBytesPerSecond(maximum)}/s · dernier {FormatBytesPerSecond(latestFirst ?? 0)}/{FormatBytesPerSecond(latestSecond ?? 0)} /s";
+    }
+
+    private void DrawHistoryRates(
+        Canvas canvas,
+        IReadOnlyList<MetricSample> samples,
+        Func<MetricSample, double?> first,
+        Func<MetricSample, double?> second)
+    {
+        canvas.Children.Clear();
+        var width = canvas.ActualWidth;
+        var height = canvas.ActualHeight;
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        for (var line = 1; line <= 3; line++)
+        {
+            var y = height * line / 4;
+            canvas.Children.Add(new Line
+            {
+                X1 = 0,
+                X2 = width,
+                Y1 = y,
+                Y2 = y,
+                Stroke = GetThemeBrush("ChartGridBrush"),
+                StrokeThickness = 1
+            });
+        }
+
+        var maximum = samples.SelectMany(sample => new[] { first(sample), second(sample) })
+            .Where(value => value.HasValue)
+            .Select(value => value!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
+        if (maximum <= 0 || samples.Count < 2)
+        {
+            return;
+        }
+
+        AddRateLine(first, Color.FromArgb(255, 99, 214, 189));
+        AddRateLine(second, Color.FromArgb(255, 100, 160, 255));
+
+        void AddRateLine(Func<MetricSample, double?> selector, Color color)
+        {
+            var points = new PointCollection();
+            for (var index = 0; index < samples.Count; index++)
+            {
+                var value = selector(samples[index]);
+                if (value is null)
+                {
+                    continue;
+                }
+
+                var x = width * index / Math.Max(1, samples.Count - 1);
+                var y = height - Math.Clamp(value.Value / maximum, 0, 1) * height;
+                points.Add(new Windows.Foundation.Point(x, y));
+            }
+
+            if (points.Count >= 2)
+            {
+                canvas.Children.Add(new Polyline
+                {
+                    Points = points,
+                    Stroke = new SolidColorBrush(color),
+                    StrokeThickness = 2.5,
+                    StrokeLineJoin = PenLineJoin.Round
+                });
+            }
+        }
+    }
+
+    private void UpdateHardwareSensorSummary(HardwareMetricsSnapshot? hardware)
+    {
+        if (!IsProFeatureEnabled(ProductFeatures.HardwareSensors))
+        {
+            HardwareSensorsText.Text = "Fonction incluse dans Premium (PRO).";
+            return;
+        }
+
+        var details = new List<string>();
+        if (hardware?.GpuLoadPercent is double gpuLoad)
+        {
+            details.Add($"GPU {hardware.GpuName ?? ""} · charge {gpuLoad:0}%");
+        }
+        else
+        {
+            details.Add($"GPU : {hardware?.GpuName ?? "capteur non disponible sur ce PC"} · charge non disponible");
+        }
+
+        if (hardware?.GpuMemoryUsedBytes is ulong gpuUsed)
+        {
+            var gpuMemory = hardware.GpuMemoryTotalBytes is ulong gpuTotal
+                ? $"{FormatBytes(gpuUsed)} / {FormatBytes(gpuTotal)}"
+                : FormatBytes(gpuUsed);
+            details.Add($"Mémoire vidéo : {gpuMemory}");
+        }
+        else
+        {
+            details.Add("Mémoire vidéo : capteur non disponible");
+        }
+
+        details.Add(hardware?.GpuTemperatureCelsius is double gpuTemp ? $"Température GPU : {gpuTemp:0} °C" : "Température GPU : capteur non disponible");
+        details.Add(hardware?.CpuTemperatureCelsius is double cpuTemp ? $"Température CPU : {cpuTemp:0} °C" : "Température CPU : capteur non disponible");
+        details.Add(hardware?.FanSpeedRpm is double fan ? $"Ventilateur : {fan:0} tr/min" : "Ventilateur : capteur non disponible");
+        HardwareSensorsText.Text = string.Join("\n", details);
+    }
+
+    private async void OnExportCsvClicked(object sender, RoutedEventArgs args) => await ExportHistoryCsvAsync();
+
+    private async Task ExportHistoryCsvAsync()
+    {
+        if (!IsProFeatureEnabled(ProductFeatures.CsvExport))
+        {
+            await ShowProUpgradeDialogAsync("L’export CSV de l’historique");
+            return;
+        }
+
+        var samples = _premiumHistory.GetLatest(GetHistoryRange());
+        if (samples.Count == 0)
+        {
+            await ShowMessageDialogAsync("Aucun relevé à exporter", "L’historique local n’a pas encore de relevé pour cette période. Laisse la surveillance active puis réessaie.");
+            return;
+        }
+
+        try
+        {
+            var picker = new FileSavePicker();
+            picker.FileTypeChoices.Add("Fichier CSV", new List<string> { ".csv" });
+            picker.SuggestedFileName = $"PCMonitorPro-{DateTime.Now:yyyyMMdd-HHmm}.csv";
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+            var file = await picker.PickSaveFileAsync();
+            if (file is null)
+            {
+                return;
+            }
+
+            var csv = new StringBuilder("timestamp,cpu_percent,memory_percent,download_bytes_per_second,upload_bytes_per_second,disk_read_bytes_per_second,disk_write_bytes_per_second,gpu_load_percent,gpu_memory_used_bytes,gpu_memory_total_bytes,gpu_temperature_c,cpu_temperature_c,network_interfaces\r\n");
+            foreach (var sample in samples)
+            {
+                var adapters = sample.NetworkInterfaces is null
+                    ? ""
+                    : string.Join(" | ", sample.NetworkInterfaces.Select(network =>
+                        $"{network.Name}: down {network.DownloadBytesPerSecond.ToString("0.##", CultureInfo.InvariantCulture)} B/s, up {network.UploadBytesPerSecond.ToString("0.##", CultureInfo.InvariantCulture)} B/s"));
+                csv.Append(sample.CapturedAt.ToLocalTime().ToString("O", CultureInfo.InvariantCulture)).Append(',')
+                    .Append(CsvNumber(sample.CpuUsagePercent)).Append(',')
+                    .Append(CsvNumber(sample.MemoryUsagePercent)).Append(',')
+                    .Append(sample.DownloadBytesPerSecond.ToString("0.##", CultureInfo.InvariantCulture)).Append(',')
+                    .Append(sample.UploadBytesPerSecond.ToString("0.##", CultureInfo.InvariantCulture)).Append(',')
+                    .Append(CsvNumber(sample.DiskReadBytesPerSecond)).Append(',')
+                    .Append(CsvNumber(sample.DiskWriteBytesPerSecond)).Append(',')
+                    .Append(CsvNumber(sample.GpuLoadPercent)).Append(',')
+                    .Append(sample.GpuMemoryUsedBytes?.ToString(CultureInfo.InvariantCulture) ?? "").Append(',')
+                    .Append(sample.GpuMemoryTotalBytes?.ToString(CultureInfo.InvariantCulture) ?? "").Append(',')
+                    .Append(CsvNumber(sample.GpuTemperatureCelsius)).Append(',')
+                    .Append(CsvNumber(sample.CpuTemperatureCelsius)).Append(',')
+                    .Append(CsvEscape(adapters)).Append("\r\n");
+            }
+
+            await FileIO.WriteTextAsync(file, csv.ToString());
+            await ShowMessageDialogAsync("Export terminé", $"{samples.Count:N0} relevés exportés dans {file.Name}.");
+        }
+        catch (Exception exception)
+        {
+            await ShowMessageDialogAsync("Export impossible", $"Le fichier CSV n’a pas pu être enregistré. {exception.Message}");
+        }
+    }
+
+    private static string CsvNumber(double? value) => value?.ToString("0.##", CultureInfo.InvariantCulture) ?? "";
+
+    private static string CsvEscape(string value) => $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+
+    private void OnHistoryCanvasSizeChanged(object sender, SizeChangedEventArgs args) => UpdateHistoryView();
 
     private void OnCpuChartSizeChanged(object sender, SizeChangedEventArgs args) => DrawCpuChart();
 
@@ -419,6 +739,9 @@ public sealed partial class MainWindow : Window
         SelectThreshold(CpuThresholdComboBox, preferences.CpuThreshold);
         SelectThreshold(MemoryThresholdComboBox, preferences.MemoryThreshold);
         SelectThreshold(DiskThresholdComboBox, preferences.DiskThreshold);
+        SelectTaggedItem(AlertDelayComboBox, preferences.TriggerDelaySeconds);
+        SelectTaggedItem(AlertCooldownComboBox, preferences.CooldownMinutes);
+        QuietHoursToggle.IsOn = proEnabled && preferences.QuietHoursEnabled;
         UpdateAlertControlsEnabledState();
         _isResettingProToggle = false;
     }
@@ -443,15 +766,67 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        var shouldRequestNotificationPermission = toggle == AlertsEnabledToggle && toggle.IsOn;
         if (toggle.IsOn && toggle != AlertsEnabledToggle && !AlertsEnabledToggle.IsOn)
         {
             _isResettingProToggle = true;
             AlertsEnabledToggle.IsOn = true;
             _isResettingProToggle = false;
+            shouldRequestNotificationPermission = true;
         }
 
         UpdateAlertControlsEnabledState();
         SaveAlertPreferences();
+        if (shouldRequestNotificationPermission)
+        {
+            await RequestNotificationAuthorizationAsync();
+        }
+    }
+
+    private async void OnRequestNotificationsClicked(object sender, RoutedEventArgs args)
+    {
+        if (!IsProFeatureEnabled(ProductFeatures.Alerts))
+        {
+            await ShowProUpgradeDialogAsync("Les alertes personnalisées");
+            return;
+        }
+
+        await RequestNotificationAuthorizationAsync();
+    }
+
+    private async Task RequestNotificationAuthorizationAsync()
+    {
+        var result = _alertNotifications.SendTestNotification();
+        NotificationPermissionStatusText.Text = result.Message;
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = WindowRoot.XamlRoot,
+            Title = result.NeedsSettings ? "Autorisation Windows requise" : "Test des notifications",
+            Content = result.Message,
+            PrimaryButtonText = result.NeedsSettings ? "Ouvrir les paramètres" : "Compris",
+            SecondaryButtonText = "Paramètres Windows",
+            CloseButtonText = "Fermer",
+            DefaultButton = result.NeedsSettings ? ContentDialogButton.Primary : ContentDialogButton.Close
+        };
+
+        var choice = await dialog.ShowAsync();
+        if ((choice == ContentDialogResult.Primary && result.NeedsSettings) || choice == ContentDialogResult.Secondary)
+        {
+            OpenWindowsNotificationSettings();
+        }
+    }
+
+    private void OpenWindowsNotificationSettings()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("ms-settings:notifications") { UseShellExecute = true });
+        }
+        catch (Exception)
+        {
+            NotificationPermissionStatusText.Text = "Impossible d’ouvrir les paramètres. Va dans Paramètres Windows > Système > Notifications.";
+        }
     }
 
     private void OnAlertThresholdChanged(object sender, SelectionChangedEventArgs args)
@@ -460,6 +835,42 @@ public sealed partial class MainWindow : Window
         {
             SaveAlertPreferences();
         }
+    }
+
+    private async void OnAlertAdvancedPreferenceToggled(object sender, RoutedEventArgs args)
+    {
+        if (_isResettingProToggle || sender is not ToggleSwitch toggle)
+        {
+            return;
+        }
+
+        if (!IsProFeatureEnabled(ProductFeatures.Alerts))
+        {
+            _isResettingProToggle = true;
+            toggle.IsOn = false;
+            _isResettingProToggle = false;
+            await ShowProUpgradeDialogAsync("Les réglages avancés des alertes");
+            return;
+        }
+
+        SaveAlertPreferences();
+    }
+
+    private async void OnAlertAdvancedPreferenceSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (_isResettingProToggle || sender is not ComboBox comboBox)
+        {
+            return;
+        }
+
+        if (!IsProFeatureEnabled(ProductFeatures.Alerts))
+        {
+            await ShowProUpgradeDialogAsync("Les réglages avancés des alertes");
+            InitializeAlertControls();
+            return;
+        }
+
+        SaveAlertPreferences();
     }
 
     private void SaveAlertPreferences()
@@ -471,7 +882,10 @@ public sealed partial class MainWindow : Window
             MemoryAlertToggle.IsOn,
             GetSelectedThreshold(MemoryThresholdComboBox, 85),
             DiskAlertToggle.IsOn,
-            GetSelectedThreshold(DiskThresholdComboBox, 90));
+            GetSelectedThreshold(DiskThresholdComboBox, 90),
+            GetSelectedTag(AlertDelayComboBox, 10),
+            GetSelectedTag(AlertCooldownComboBox, 15),
+            QuietHoursToggle.IsOn);
     }
 
     private void UpdateAlertControlsEnabledState()
@@ -484,6 +898,9 @@ public sealed partial class MainWindow : Window
         CpuThresholdComboBox.IsEnabled = alertsEnabled && CpuAlertToggle.IsOn;
         MemoryThresholdComboBox.IsEnabled = alertsEnabled && MemoryAlertToggle.IsOn;
         DiskThresholdComboBox.IsEnabled = alertsEnabled && DiskAlertToggle.IsOn;
+        AlertDelayComboBox.IsEnabled = alertsEnabled;
+        AlertCooldownComboBox.IsEnabled = alertsEnabled;
+        QuietHoursToggle.IsEnabled = alertsEnabled;
     }
 
     private static void SelectThreshold(ComboBox comboBox, int threshold)
@@ -494,6 +911,19 @@ public sealed partial class MainWindow : Window
             ?? comboBox.Items.OfType<ComboBoxItem>().First();
     }
 
+    private static void SelectTaggedItem(ComboBox comboBox, int value)
+    {
+        comboBox.SelectedItem = comboBox.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => item.Tag?.ToString() == value.ToString())
+            ?? comboBox.Items.OfType<ComboBoxItem>().First();
+    }
+
+    private static int GetSelectedTag(ComboBox comboBox, int fallback) =>
+        comboBox.SelectedItem is ComboBoxItem item && int.TryParse(item.Tag?.ToString(), out var value)
+            ? value
+            : fallback;
+
     private static int GetSelectedThreshold(ComboBox comboBox, int fallback) =>
         comboBox.SelectedItem is ComboBoxItem item && int.TryParse(item.Tag?.ToString(), out var threshold)
             ? threshold
@@ -502,15 +932,32 @@ public sealed partial class MainWindow : Window
     private async void OnProFeatureClicked(object sender, RoutedEventArgs args)
     {
         var featureId = (sender as Button)?.Tag?.ToString();
-        if (featureId != ProductFeatures.Alerts)
+        if (featureId is null || !IsProFeatureEnabled(featureId))
         {
-            await ShowMessageDialogAsync(
-                "Fonction Pro à venir",
-                "Cette fonction fait partie de l’offre Premium, mais elle n’est pas encore disponible. Elle ne sera déverrouillable qu’après son ajout dans une prochaine version.");
+            var title = featureId switch
+            {
+                ProductFeatures.PersistentHistory => "L’historique local",
+                ProductFeatures.AdvancedCharts => "Les graphiques avancés",
+                ProductFeatures.CsvExport => "L’export CSV",
+                ProductFeatures.HardwareSensors => "Les capteurs matériels",
+                _ => "Les alertes personnalisées"
+            };
+            await ShowProUpgradeDialogAsync(title);
             return;
         }
 
-        await ShowProUpgradeDialogAsync("Les alertes personnalisées");
+        switch (featureId)
+        {
+            case ProductFeatures.Alerts:
+                RootNavigation.SelectedItem = RootNavigation.MenuItems.OfType<NavigationViewItem>().First(item => item.Tag?.ToString() == "alerts");
+                break;
+            case ProductFeatures.CsvExport:
+                await ExportHistoryCsvAsync();
+                break;
+            default:
+                RootNavigation.SelectedItem = RootNavigation.MenuItems.OfType<NavigationViewItem>().First(item => item.Tag?.ToString() == "history");
+                break;
+        }
     }
 
     private async void OnShowProOfferClicked(object sender, RoutedEventArgs args) =>
@@ -518,6 +965,9 @@ public sealed partial class MainWindow : Window
 
     private async Task RefreshLicenseStateAsync()
     {
+#if PCMONITORPRO_PREMIUM_TEST
+        _licenseState = DevelopmentLicense.Current;
+#else
         try
         {
             _licenseState = await _licenseProvider.GetCurrentLicenseAsync();
@@ -526,28 +976,44 @@ public sealed partial class MainWindow : Window
         {
             _licenseState = DevelopmentLicense.Current;
         }
+#endif
 
         InitializeAlertControls();
+        if (IsProFeatureEnabled(ProductFeatures.PersistentHistory))
+        {
+            await _premiumHistory.LoadAsync();
+        }
         UpdateLicenseDependentUi();
+        UpdateHistoryView();
     }
 
     private void UpdateLicenseDependentUi()
     {
+        PremiumOfferBanner.Visibility = IsProFeatureEnabled(ProductFeatures.Alerts)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
         if (IsProFeatureEnabled(ProductFeatures.Alerts))
         {
             _alertNotifications.NotificationInvoked -= OnAlertNotificationInvoked;
             _alertNotifications.NotificationInvoked += OnAlertNotificationInvoked;
             var notificationsAvailable = _alertNotifications.Register();
+#if PCMONITORPRO_PREMIUM_TEST
             AlertsStatusText.Text = notificationsAvailable
-                ? "Licence Pro Microsoft Store active. Les alertes sont locales; vérifie que Windows autorise les notifications."
-                : "Licence Pro active, mais les notifications Windows ne sont pas disponibles dans cette session.";
+                ? "MODE TEST : licence Premium simulée active. Aucun achat Microsoft Store n’a été effectué. Utilise « Autoriser et tester » pour vérifier les notifications."
+                : "MODE TEST : licence Premium simulée active, mais Windows n’a pas enregistré les notifications. Utilise « Autoriser et tester » pour afficher les détails.";
+#else
+            AlertsStatusText.Text = notificationsAvailable
+                ? "Licence Pro Microsoft Store active. Utilise « Autoriser et tester » pour vérifier les notifications Windows."
+                : "Licence Pro active, mais Windows n’a pas enregistré les notifications. Utilise « Autoriser et tester » pour afficher les détails.";
+#endif
         }
         else
         {
             _alertNotifications.Unregister();
             AlertsStatusText.Text = StoreCatalog.IsPackaged
-                ? "Les alertes sont réservées à la version payante Pro. Active une option pour acheter l’extension dans le Microsoft Store."
-                : "Les alertes sont réservées à la version Pro du Microsoft Store. Depuis l’EXE, les options Pro renvoient vers la fiche Store.";
+                ? "Les alertes, l’historique 24 h, l’export CSV et les capteurs matériels sont réservés à Premium (PRO). Active une option pour consulter l’offre Store."
+                : "Les fonctions Premium (PRO) sont réservées à la version Microsoft Store. Depuis l’EXE, elles renvoient vers la fiche Store.";
         }
     }
 
@@ -557,16 +1023,32 @@ public sealed partial class MainWindow : Window
         {
             if (featureName.Contains("fonctions Premium", StringComparison.OrdinalIgnoreCase))
             {
+#if PCMONITORPRO_PREMIUM_TEST
+                await ShowMessageDialogAsync(
+                    "Mode test Premium",
+                    "La licence Premium simulée est active pour cet essai. Aucun achat Microsoft Store n’a été effectué. Les fonctions proposées sont déverrouillées dans ce build de test.");
+#else
                 await ShowMessageDialogAsync(
                     "PC Monitor Pro Premium activé",
-                    "Les fonctions Premium déjà livrées sont déverrouillées. Les fonctions signalées « à venir » seront activées dans leur future version.");
+                    "Les fonctions Premium sont déverrouillées sur cet appareil.");
+#endif
                 return;
             }
 
+            var destination = featureName.Contains("historique", StringComparison.OrdinalIgnoreCase) ||
+                              featureName.Contains("CSV", StringComparison.OrdinalIgnoreCase) ||
+                              featureName.Contains("capteurs", StringComparison.OrdinalIgnoreCase) ||
+                              featureName.Contains("graphiques", StringComparison.OrdinalIgnoreCase)
+                ? "history"
+                : "alerts";
             RootNavigation.SelectedItem = RootNavigation.MenuItems
                 .OfType<NavigationViewItem>()
-                .First(item => item.Tag?.ToString() == "alerts");
-            await ShowMessageDialogAsync("Licence Pro active", $"La licence Store est active. {featureName} peut être réglée dans la page Alertes Pro.");
+                .First(item => item.Tag?.ToString() == destination);
+#if PCMONITORPRO_PREMIUM_TEST
+            await ShowMessageDialogAsync("Mode test Premium", $"Licence simulée active. Aucun achat Store n’a été effectué. {featureName} est disponible dans l’application.");
+#else
+            await ShowMessageDialogAsync("Licence Pro active", $"La licence Store est active. {featureName} est disponible dans l’application.");
+#endif
             return;
         }
 
@@ -579,7 +1061,7 @@ public sealed partial class MainWindow : Window
             XamlRoot = WindowRoot.XamlRoot,
             Title = "Fonctionnalité réservée à la version PRO",
             Content = storeIdConfigured
-                ? $"{featureName} sont réservées à PC Monitor Pro Premium, vendu uniquement dans le Microsoft Store."
+                ? $"{featureName} sont réservées à PC Monitor Pro Premium. L’achat est unique; le Microsoft Store affichera le prix et demandera confirmation avant le paiement."
                 : "L’offre PC Monitor Pro Premium n’est pas encore configurée dans le Microsoft Store.",
             PrimaryButtonText = storeIdConfigured
                 ? isPackaged ? "Acheter dans le Microsoft Store" : "Ouvrir la version Store"
@@ -680,6 +1162,7 @@ public sealed partial class MainWindow : Window
         }
 
         DrawCpuChart();
+        UpdateHistoryView();
     }
 
     private SolidColorBrush GetThemeBrush(string key)
@@ -694,93 +1177,6 @@ public sealed partial class MainWindow : Window
         }
 
         return new SolidColorBrush(Colors.Transparent);
-    }
-
-    private void LoadVersionHistory()
-    {
-        VersionHistoryPanel.Children.Clear();
-        VersionHistoryPanel.Children.Add(new TextBlock
-        {
-            Text = "Historique des versions",
-            FontSize = 28,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = GetThemeBrush("PrimaryTextBrush")
-        });
-        VersionHistoryPanel.Children.Add(new TextBlock
-        {
-            Text = "Journal complet des versions de PC Monitor Pro Premium.",
-            FontSize = 13,
-            Foreground = GetThemeBrush("MutedTextBrush"),
-            Margin = new Thickness(0, -8, 0, 4)
-        });
-
-        using var stream = typeof(MainWindow).Assembly.GetManifestResourceStream("PCMonitor.App.VersionHistory.md");
-        if (stream is null)
-        {
-            VersionHistoryPanel.Children.Add(new TextBlock
-            {
-                Text = "Le fichier CHANGELOG.md n’est pas inclus dans cette version.",
-                Foreground = GetThemeBrush("MutedTextBrush")
-            });
-            return;
-        }
-
-        using var reader = new StreamReader(stream);
-        string? version = null;
-        var changes = new List<string>();
-
-        void AddVersionCard()
-        {
-            if (version is null)
-            {
-                return;
-            }
-
-            var content = new StackPanel { Spacing = 8 };
-            content.Children.Add(new TextBlock
-            {
-                Text = version,
-                FontSize = 17,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = GetThemeBrush("PrimaryTextBrush")
-            });
-            foreach (var change in changes)
-            {
-                content.Children.Add(new TextBlock
-                {
-                    Text = $"•  {change}",
-                    FontSize = 13,
-                    TextWrapping = TextWrapping.Wrap,
-                    Foreground = GetThemeBrush("MutedTextBrush")
-                });
-            }
-
-            VersionHistoryPanel.Children.Add(new Border
-            {
-                Background = GetThemeBrush("PanelBrush"),
-                BorderBrush = GetThemeBrush("PanelBorderBrush"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(12),
-                Padding = new Thickness(20),
-                Child = content
-            });
-            changes.Clear();
-        }
-
-        while (reader.ReadLine() is { } line)
-        {
-            if (line.StartsWith("## ", StringComparison.Ordinal))
-            {
-                AddVersionCard();
-                version = line[3..].Trim();
-            }
-            else if (line.StartsWith("- ", StringComparison.Ordinal) && version is not null)
-            {
-                changes.Add(line[2..].Trim());
-            }
-        }
-
-        AddVersionCard();
     }
 
     private void OnAlertNotificationInvoked()
@@ -805,21 +1201,42 @@ public sealed partial class MainWindow : Window
         Close();
     }
 
-    private void OnWindowClosed(object sender, WindowEventArgs args)
+    private async void OnWindowClosed(object sender, WindowEventArgs args)
     {
+        _timer.Stop();
         _trayIcon.Dispose();
         _alertNotifications.Unregister();
+        if (IsProFeatureEnabled(ProductFeatures.PersistentHistory))
+        {
+            await _premiumHistory.FlushAsync();
+        }
+
+        if (_metricsCollector is IDisposable disposableCollector)
+        {
+            disposableCollector.Dispose();
+        }
     }
 
-    private void OnNavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    private async void OnNavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         var tag = (args.SelectedItem as NavigationViewItem)?.Tag?.ToString();
+        if (tag == "history" && !IsProFeatureEnabled(ProductFeatures.PersistentHistory))
+        {
+            sender.SelectedItem = sender.MenuItems.OfType<NavigationViewItem>().First(item => item.Tag?.ToString() == "dashboard");
+            await ShowProUpgradeDialogAsync("L’historique local et les graphiques Premium");
+            return;
+        }
+
         DashboardView.Visibility = tag == "dashboard" ? Visibility.Visible : Visibility.Collapsed;
         SettingsView.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
         AlertsView.Visibility = tag == "alerts" ? Visibility.Visible : Visibility.Collapsed;
         HistoryView.Visibility = tag == "history" ? Visibility.Visible : Visibility.Collapsed;
         AboutView.Visibility = tag == "about" ? Visibility.Visible : Visibility.Collapsed;
         ProView.Visibility = tag == "pro" ? Visibility.Visible : Visibility.Collapsed;
+        if (tag == "history")
+        {
+            UpdateHistoryView();
+        }
     }
 
     private void OnRefreshIntervalChanged(object sender, SelectionChangedEventArgs args)

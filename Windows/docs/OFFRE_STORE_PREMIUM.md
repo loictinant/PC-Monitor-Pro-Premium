@@ -41,7 +41,7 @@ La fiche de localisation de l’extension propose un nom de produit (100 caract�
 
 ## Préparation de la déclaration de confidentialité
 
-La revue du code actuel montre que les mesures CPU, mémoire, disques et débits réseau sont lues localement. Aucune télémétrie, bibliothèque d’analytics ou requête HTTP d’envoi n’a été trouvée. La vérification et l’achat de licence utilisent `StoreContext` dans l’application empaquetée. La déclaration « Non » a été enregistrée dans Partner Center; aucune URL de confidentialité ou de support n’a été renseignée.
+La revue du code actuel montre que les mesures CPU, mémoire, disques et débits réseau sont lues localement. Aucune télémétrie, bibliothèque d’analytics ou requête HTTP d’envoi n’a été trouvée. La vérification et l’achat de licence utilisent `StoreContext` dans l’application empaquetée. La déclaration « Non » a été enregistrée dans Partner Center; aucune URL de confidentialité ou de support n’a été renseignée. Un texte de politique basé sur le code actuel est préparé dans `docs/POLITIQUE_CONFIDENTIALITE.md`; il faut encore fournir un contact, le relire puis le publier sur une page publique avant d’enregistrer son URL.
 
 ## Étapes Partner Center restantes
 

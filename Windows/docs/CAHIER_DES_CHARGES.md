@@ -22,8 +22,8 @@ Fournir une application Windows de bureau claire et légère qui affiche en dire
 | Rafraîchissement | 1, 2, 5 ou 10 secondes, choix conservé localement ; pause/reprise et actualisation manuelle. |
 | Historique | Historique de session borné à 15 minutes, affichage des 60 derniers points. Pas d'envoi réseau ni de collecte en arrière-plan lorsque l'application est fermée. |
 | Interface | Tableau de bord, réglages simples, état de collecte lisible, unités adaptées, thèmes automatique/clair/sombre. |
-| Historique des versions | Journal versionné dans `CHANGELOG.md`, également consultable dans l’application. |
-| Installation | EXE autonome x64 pour l’essai courant; MSIX reporté jusqu’à la préparation avant publication. |
+| Historique des versions | Journal versionné conservé dans `CHANGELOG.md` comme documentation du projet; il n’est pas affiché dans l’application. |
+| Installation | EXE autonome x64 pour les essais et paquet MSIX x64 préparé pour validation Store. |
 
 ## Modèle gratuit / Pro proposé
 

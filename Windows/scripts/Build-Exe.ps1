@@ -2,7 +2,8 @@ param(
     [ValidateSet("x64")]
     [string]$Runtime = "x64",
     [string]$StoreListingProductId = "9P34JVNCWKJJ",
-    [string]$ProAddOnStoreId = ""
+    [string]$ProAddOnStoreId = "",
+    [switch]$PremiumTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,7 +17,12 @@ $projectVersion = $projectDefinition.Project.PropertyGroup |
 if ([string]::IsNullOrWhiteSpace($projectVersion)) {
     throw "Version de l’application introuvable dans $projectPath"
 }
-$outputPath = Join-Path $repositoryRoot "artifacts\PCMonitorPro-exe-$Runtime-v$projectVersion"
+$outputFolderName = if ($PremiumTest) {
+    "PCMonitorPro-premium-test-$Runtime-v$projectVersion"
+} else {
+    "PCMonitorPro-exe-$Runtime-v$projectVersion"
+}
+$outputPath = Join-Path $repositoryRoot "artifacts\$outputFolderName"
 $runtimeIdentifier = "win-$Runtime"
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
@@ -35,6 +41,7 @@ dotnet publish $projectPath `
     -p:EnableMsixTooling=true `
     "-p:StoreListingProductId=$StoreListingProductId" `
     "-p:ProAddOnStoreId=$ProAddOnStoreId" `
+    "-p:PCMonitorProPremiumTest=$($PremiumTest.IsPresent.ToString().ToLowerInvariant())" `
     -p:IncludeAllContentForSelfExtract=true `
     -p:PublishSingleFile=true
 
@@ -48,3 +55,6 @@ if (-not (Test-Path -LiteralPath $exePath)) {
 }
 
 Write-Host "EXE de test : $exePath"
+if ($PremiumTest) {
+    Write-Host "Mode Premium de test activé : licence simulée, aucun achat Store effectué. Ne pas distribuer ni soumettre ce build."
+}

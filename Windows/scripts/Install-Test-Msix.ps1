@@ -1,12 +1,17 @@
-#requires -RunAsAdministrator
-
 $ErrorActionPreference = "Stop"
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$packageRoot = Join-Path $repositoryRoot "artifacts\PCMonitorPro-msix"
-$packagePath = Join-Path $packageRoot "PCMonitor.App_0.1.0.0_x64_Test\PCMonitor.App_0.1.0.0_x64.msix"
-$certificatePath = Join-Path $packageRoot "PCMonitorPro-TestCert.cer"
-$dependencyPath = Join-Path $packageRoot "PCMonitor.App_0.1.0.0_x64_Test\Dependencies\x64\Microsoft.WindowsAppRuntime.2.msix"
-$expectedSubject = "CN=PC Monitor Pro Development"
+$projectPath = Join-Path $repositoryRoot "src\PCMonitor.App\PCMonitor.App.csproj"
+$projectDefinition = [xml](Get-Content -LiteralPath $projectPath -Raw)
+$projectVersion = $projectDefinition.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1 -ExpandProperty Version
+$packageVersion = $projectDefinition.Project.PropertyGroup | Where-Object { $_.AppxPackageVersion } | Select-Object -First 1 -ExpandProperty AppxPackageVersion
+if ([string]::IsNullOrWhiteSpace($projectVersion) -or [string]::IsNullOrWhiteSpace($packageVersion)) {
+    throw "Version de l’application introuvable dans $projectPath"
+}
+$packageRoot = Join-Path $repositoryRoot "artifacts\PCMonitorPro-msix-v$projectVersion-local-test"
+$packagePath = Join-Path $packageRoot "PCMonitor.App_${packageVersion}_x64.msix"
+$certificatePath = Join-Path $packageRoot "PCMonitorPro-LocalTest.cer"
+$dependencyPath = Join-Path $packageRoot "Dependencies\x64\Microsoft.WindowsAppRuntime.2.msix"
+$expectedSubject = "CN=D67E21A8-DC00-45EF-86D1-375158FB659F"
 
 foreach ($path in @($packagePath, $certificatePath, $dependencyPath)) {
     if (-not (Test-Path -LiteralPath $path)) {
@@ -27,11 +32,11 @@ $trustedCertificate = Get-ChildItem Cert:\LocalMachine\TrustedPeople |
     Select-Object -First 1
 
 if (-not $trustedCertificate) {
-    Import-Certificate -FilePath $certificatePath -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+    throw "Certificat non approuvé sur cet ordinateur. Lance d'abord scripts\Trust-Test-Msix-Certificate.ps1 dans PowerShell administrateur, puis réessaie dans ta session Windows normale."
 }
 
 Add-AppxPackage -Path $packagePath -DependencyPath $dependencyPath -ForceUpdateFromAnyVersion -ErrorAction Stop
-$installedPackage = Get-AppxPackage -Name "PCMonitorPro.Local" -ErrorAction Stop
+$installedPackage = Get-AppxPackage -Name "TINANTLOIC.PCMonitorProPremium" -ErrorAction Stop
 
 Write-Host "Installation MSIX de test terminée : version $($installedPackage.Version)."
 Write-Host "Ouvre PC Monitor Pro Premium depuis le menu Démarrer."

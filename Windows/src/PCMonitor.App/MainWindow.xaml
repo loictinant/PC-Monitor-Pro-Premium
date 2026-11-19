@@ -22,8 +22,8 @@
                 <NavigationViewItem Content="Alertes Pro" Tag="alerts">
                     <NavigationViewItem.Icon><SymbolIcon Symbol="Message" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Historique" Tag="history">
-                    <NavigationViewItem.Icon><SymbolIcon Symbol="Document" /></NavigationViewItem.Icon>
+                <NavigationViewItem Content="Historique (PRO)" Tag="history">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="Library" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
@@ -39,7 +39,9 @@
                     <Grid x:Name="DashboardView" Margin="30,24,30,24">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="22" />
+                            <RowDefinition Height="12" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="14" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="18" />
                             <RowDefinition Height="*" />
@@ -68,7 +70,22 @@
                             </StackPanel>
                         </Grid>
 
-                        <Grid Grid.Row="2" ColumnSpacing="14">
+                        <Border x:Name="PremiumOfferBanner" Grid.Row="2" Visibility="Collapsed" Style="{StaticResource MetricCardStyle}" Padding="18" BorderBrush="{ThemeResource AccentBrush}">
+                            <Grid ColumnSpacing="18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="4" VerticalAlignment="Center">
+                                    <TextBlock Text="PC Monitor Pro Premium · achat unique" Foreground="{ThemeResource AccentBrush}" FontSize="14" FontWeight="SemiBold" />
+                                    <TextBlock Text="Débloquez les alertes, l’historique 24 h, les graphiques avancés et l’export CSV." Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" TextWrapping="Wrap" />
+                                    <TextBlock Text="Le prix et la confirmation de l’achat sont affichés par le Microsoft Store." Foreground="{ThemeResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Acheter Premium" Click="OnShowProOfferClicked" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="4" ColumnSpacing="14">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
@@ -108,7 +125,7 @@
                                     </Grid>
                                     <TextBlock x:Name="DiskValueText" Text="—" FontSize="32" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
                                     <ProgressBar x:Name="DiskProgressBar" Maximum="100" Value="0" Height="5" />
-                                    <TextBlock x:Name="DiskDetailText" Text="Volumes fixes prêts" Foreground="{ThemeResource MutedTextBrush}" FontSize="12" />
+                                    <TextBlock x:Name="DiskDetailText" Text="Volumes fixes prêts" Foreground="{ThemeResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Column="3" Style="{StaticResource MetricCardStyle}">
@@ -125,12 +142,13 @@
                                         <TextBlock Text="↑" Foreground="{ThemeResource BlueBrush}" FontSize="20" />
                                         <TextBlock x:Name="UploadValueText" Text="—" FontSize="21" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
                                     </StackPanel>
-                                    <TextBlock Text="Débits agrégés reçus / envoyés" Foreground="{ThemeResource MutedTextBrush}" FontSize="12" />
+                                    <TextBlock Text="Débits totaux · détails par adaptateur" Foreground="{ThemeResource MutedTextBrush}" FontSize="12" />
+                                    <TextBlock x:Name="NetworkAdaptersText" Text="Détection des adaptateurs…" Foreground="{ThemeResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" MaxLines="2" />
                                 </StackPanel>
                             </Border>
                         </Grid>
 
-                        <Grid Grid.Row="4" ColumnSpacing="14">
+                        <Grid Grid.Row="6" ColumnSpacing="14">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="1.65*" />
                                 <ColumnDefinition Width="1*" />
@@ -145,7 +163,7 @@
                                     <Grid>
                                         <StackPanel Spacing="3">
                                             <TextBlock Text="Activité du processeur" FontSize="16" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
-                                            <TextBlock Text="Historique de cette session · 60 derniers relevés" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                            <TextBlock Text="Historique gratuit de la session · 15 dernières minutes" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
                                         </StackPanel>
                                         <TextBlock x:Name="ChartCurrentText" Grid.Column="1" Text="— %" FontSize="19" FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}" HorizontalAlignment="Right" />
                                     </Grid>
@@ -178,7 +196,7 @@
                             </Border>
                         </Grid>
 
-                        <Grid Grid.Row="6">
+                        <Grid Grid.Row="8">
                             <TextBlock x:Name="LastUpdatedText" Text="En attente du premier relevé…" Foreground="{ThemeResource MutedTextBrush}" FontSize="11" />
                             <TextBlock Text="Collecte locale · aucune donnée envoyée" HorizontalAlignment="Right" Foreground="{ThemeResource MutedTextBrush}" FontSize="11" />
                         </Grid>
@@ -266,7 +284,7 @@
                         <Border Grid.Row="10" Style="{StaticResource MetricCardStyle}" Padding="22">
                             <StackPanel Spacing="10">
                                 <TextBlock Text="Confidentialité" FontSize="16" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
-                                <TextBlock Text="Les compteurs sont lus sur cet appareil. L’historique reste en mémoire pendant cette session et s’efface à la fermeture. L’application ne demande pas de compte et n’envoie pas de données." Foreground="{ThemeResource MutedTextBrush}" FontSize="13" TextWrapping="Wrap" />
+                                <TextBlock Text="Les mesures sont lues sur cet appareil. La version gratuite conserve l’historique en mémoire pendant la session; Premium garde un historique local dans votre profil Windows pendant 24 h. Aucune mesure n’est envoyée au développeur." Foreground="{ThemeResource MutedTextBrush}" FontSize="13" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -292,6 +310,20 @@
                                     </Grid>
                                 </Border>
                                 <Border Style="{StaticResource MetricCardStyle}" Padding="20">
+                                    <Grid ColumnSpacing="18">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Spacing="5" VerticalAlignment="Center">
+                                            <TextBlock Text="Notifications Windows" FontSize="16" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
+                                            <TextBlock Text="Demandez l’autorisation en envoyant une notification de test. Si Windows l’a déjà refusée, ouvrez ses paramètres." FontSize="12" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Button x:Name="RequestNotificationsButton" Grid.Column="1" Content="Autoriser et tester" Click="OnRequestNotificationsClicked" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                                <TextBlock x:Name="NotificationPermissionStatusText" Text="Les notifications sont gérées dans Paramètres Windows > Système > Notifications." Foreground="{ThemeResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="2,0,2,0" />
+                                <Border Style="{StaticResource MetricCardStyle}" Padding="20">
                                     <Grid ColumnSpacing="16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -303,7 +335,7 @@
                                             <TextBlock Text="Alerte de charge CPU avec seuil personnalisable." FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
                                         </StackPanel>
                                         <ToggleSwitch x:Name="CpuAlertToggle" Grid.Column="1" VerticalAlignment="Center" OffContent="Verrouillé" OnContent="PRO" Toggled="OnProFeatureToggled" />
-                                        <ComboBox x:Name="CpuThresholdComboBox" Grid.Column="2" VerticalAlignment="Center" IsEnabled="False" SelectedIndex="3" SelectionChanged="OnAlertThresholdChanged">
+                                        <ComboBox x:Name="CpuThresholdComboBox" Grid.Column="2" VerticalAlignment="Center" IsEnabled="False" SelectionChanged="OnAlertThresholdChanged">
                                             <ComboBoxItem Content="70 %" Tag="70" /><ComboBoxItem Content="75 %" Tag="75" /><ComboBoxItem Content="80 %" Tag="80" /><ComboBoxItem Content="85 %" Tag="85" /><ComboBoxItem Content="90 %" Tag="90" /><ComboBoxItem Content="95 %" Tag="95" />
                                         </ComboBox>
                                     </Grid>
@@ -320,7 +352,7 @@
                                             <TextBlock Text="Alerte d’utilisation mémoire avec seuil personnalisable." FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
                                         </StackPanel>
                                         <ToggleSwitch x:Name="MemoryAlertToggle" Grid.Column="1" VerticalAlignment="Center" OffContent="Verrouillé" OnContent="PRO" Toggled="OnProFeatureToggled" />
-                                        <ComboBox x:Name="MemoryThresholdComboBox" Grid.Column="2" VerticalAlignment="Center" IsEnabled="False" SelectedIndex="3" SelectionChanged="OnAlertThresholdChanged">
+                                        <ComboBox x:Name="MemoryThresholdComboBox" Grid.Column="2" VerticalAlignment="Center" IsEnabled="False" SelectionChanged="OnAlertThresholdChanged">
                                             <ComboBoxItem Content="70 %" Tag="70" /><ComboBoxItem Content="75 %" Tag="75" /><ComboBoxItem Content="80 %" Tag="80" /><ComboBoxItem Content="85 %" Tag="85" /><ComboBoxItem Content="90 %" Tag="90" /><ComboBoxItem Content="95 %" Tag="95" />
                                         </ComboBox>
                                     </Grid>
@@ -337,9 +369,27 @@
                                             <TextBlock Text="Alerte séparée pour chaque disque avec seuil personnalisable." FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
                                         </StackPanel>
                                         <ToggleSwitch x:Name="DiskAlertToggle" Grid.Column="1" VerticalAlignment="Center" OffContent="Verrouillé" OnContent="PRO" Toggled="OnProFeatureToggled" />
-                                        <ComboBox x:Name="DiskThresholdComboBox" Grid.Column="2" VerticalAlignment="Center" IsEnabled="False" SelectedIndex="4" SelectionChanged="OnAlertThresholdChanged">
+                                        <ComboBox x:Name="DiskThresholdComboBox" Grid.Column="2" VerticalAlignment="Center" IsEnabled="False" SelectionChanged="OnAlertThresholdChanged">
                                             <ComboBoxItem Content="70 %" Tag="70" /><ComboBoxItem Content="75 %" Tag="75" /><ComboBoxItem Content="80 %" Tag="80" /><ComboBoxItem Content="85 %" Tag="85" /><ComboBoxItem Content="90 %" Tag="90" /><ComboBoxItem Content="95 %" Tag="95" />
                                         </ComboBox>
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource MetricCardStyle}" Padding="20">
+                                    <Grid ColumnSpacing="18">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                                            <TextBlock Text="Comportement des alertes (PRO)" FontSize="15" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
+                                            <TextBlock Text="Délai avant notification, délai entre répétitions et plage calme fixe de 22 h à 7 h." FontSize="12" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                            <ComboBox x:Name="AlertDelayComboBox" Width="115" Header="Délai" SelectionChanged="OnAlertAdvancedPreferenceSelectionChanged">
+                                                <ComboBoxItem Content="Immédiat" Tag="0" /><ComboBoxItem Content="10 s" Tag="10" /><ComboBoxItem Content="30 s" Tag="30" />
+                                            </ComboBox>
+                                            <ComboBox x:Name="AlertCooldownComboBox" Width="130" Header="Répéter après" SelectionChanged="OnAlertAdvancedPreferenceSelectionChanged">
+                                                <ComboBoxItem Content="5 min" Tag="5" /><ComboBoxItem Content="15 min" Tag="15" /><ComboBoxItem Content="1 h" Tag="60" />
+                                            </ComboBox>
+                                            <ToggleSwitch x:Name="QuietHoursToggle" Header="Heures calmes" OffContent="Désactivées" OnContent="22 h–7 h" Toggled="OnAlertAdvancedPreferenceToggled" />
+                                        </StackPanel>
                                     </Grid>
                                 </Border>
                                 <TextBlock x:Name="AlertsStatusText" Text="Aucune alerte n’est envoyée dans la version gratuite." Foreground="{ThemeResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="2,0,2,10" />
@@ -350,10 +400,11 @@
                     <Grid x:Name="AboutView" Visibility="Collapsed" Margin="30,24,30,24">
                         <StackPanel Spacing="12">
                             <TextBlock Text="PC Monitor Pro Premium" FontSize="28" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
-                            <TextBlock Text="Version 0.2.2 · version de test" FontSize="14" Foreground="{ThemeResource MutedTextBrush}" />
+                            <TextBlock Text="Version 0.3.0" FontSize="14" Foreground="{ThemeResource MutedTextBrush}" />
                             <TextBlock Text="Développé par LOIC TINANT" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}" />
-                            <TextBlock Text="GitHub et site internet : à venir." FontSize="13" Foreground="{ThemeResource MutedTextBrush}" />
-                            <TextBlock Text="Le tableau de bord gratuit est disponible. PC Monitor Pro Premium déverrouillera les fonctions marquées (PRO); celles signalées « à venir » ne sont pas encore disponibles." FontSize="13" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" MaxWidth="620" />
+                            <HyperlinkButton Content="Projet GitHub" NavigateUri="https://github.com/loictinant/PC-Monitor-Pro-Premium" />
+                            <HyperlinkButton Content="Site internet" NavigateUri="https://loic-apps.duckdns.org/" />
+                            <TextBlock Text="La version gratuite comprend les mesures locales, le réseau par adaptateur, l’activité disque et un graphique de session sur 15 minutes. Premium ajoute l’historique local sur 24 h, les graphiques avancés, l’export CSV, les alertes réglables et les capteurs matériels disponibles." FontSize="13" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" MaxWidth="620" />
                         </StackPanel>
                     </Grid>
 
@@ -387,25 +438,71 @@
                                 <StackPanel Spacing="11">
                                     <TextBlock Text="VERSION PREMIUM · ACHAT UNIQUE" Foreground="#9A5CC7" FontWeight="SemiBold" FontSize="12" />
                                     <TextBlock Text="Toutes les fonctions marquées (PRO)" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="19" FontWeight="SemiBold" />
-                                    <TextBlock Text="Un seul achat pour les fonctions Premium livrées dans l’application. Certaines sont encore en préparation." Foreground="{ThemeResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" />
-                                    <Button Content="Historique persistant jusqu’à 24 h (PRO) · à venir" Tag="persistent-history" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                    <TextBlock Text="L’offre Premium déverrouille les fonctions ci-dessous. Les mesures GPU, températures et ventilateurs dépendent des capteurs et pilotes accessibles sur ce PC." Foreground="{ThemeResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                                    <Button Content="Historique local persistant jusqu’à 24 h (PRO)" Tag="persistent-history" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                                     <Button Content="Alertes CPU, mémoire et disques (PRO)" Tag="alerts" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                                    <Button Content="Graphiques avancés et intervalle étendu (PRO) · à venir" Tag="advanced-charts" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                                    <Button Content="Export CSV et rapports (PRO) · à venir" Tag="csv-export" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                                    <Button Content="Surveillance GPU et mémoire vidéo (PRO) · à venir" Tag="hardware-sensors" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                                    <Button Content="Températures et ventilateurs (PRO) · selon le matériel · à venir" Tag="hardware-sensors" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                                    <Button Content="Découvrir PC Monitor Pro Premium" Click="OnShowProOfferClicked" HorizontalAlignment="Left" Margin="0,4,0,0" />
+                                    <Button Content="Graphiques avancés 1 h / 6 h / 24 h (PRO)" Tag="advanced-charts" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                    <Button Content="Exporter l’historique en CSV (PRO)" Tag="csv-export" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                    <Button Content="Charge GPU et mémoire vidéo (PRO)" Tag="hardware-sensors" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                    <Button Content="Température CPU/GPU et ventilateurs (PRO)" Tag="hardware-sensors" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                    <Button Content="Acheter Premium dans le Microsoft Store" Click="OnShowProOfferClicked" HorizontalAlignment="Left" Margin="0,4,0,0" />
                                 </StackPanel>
                             </Border>
                         </Grid>
-                        <TextBlock Grid.Row="4" Text="L’achat unique Premium débloquera les fonctions marquées (PRO). Dans cette version, seules les alertes personnalisées sont prêtes; les fonctions indiquées « à venir » ne sont pas encore déverrouillables." Foreground="{ThemeResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="4" Text="Les capteurs non pris en charge par le matériel ou les pilotes apparaissent comme indisponibles. Les mesures et l’historique restent sur cet appareil; aucun relevé n’est transmis au développeur. Le prix de l’achat unique est affiché par le Microsoft Store avant confirmation." Foreground="{ThemeResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" />
                     </Grid>
 
                     <Grid x:Name="HistoryView" Visibility="Collapsed" Margin="30,24,30,24">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel x:Name="VersionHistoryPanel" Spacing="14" />
+                            <StackPanel Spacing="16">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Historique Premium (PRO)" FontSize="28" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
+                                        <TextBlock x:Name="HistoryStatusText" Text="Historique local des dernières 24 heures." FontSize="13" Foreground="{ThemeResource MutedTextBrush}" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="HistoryRangeComboBox" Grid.Column="1" Width="130" VerticalAlignment="Center" SelectionChanged="OnHistoryRangeChanged">
+                                        <ComboBoxItem Content="Dernière heure" Tag="1" /><ComboBoxItem Content="6 dernières heures" Tag="6" /><ComboBoxItem Content="24 dernières heures" Tag="24" />
+                                    </ComboBox>
+                                    <Button Grid.Column="2" Content="Exporter CSV" Click="OnExportCsvClicked" VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Style="{StaticResource MetricCardStyle}" Padding="20">
+                                    <StackPanel Spacing="10">
+                                        <Grid><TextBlock Text="Processeur" FontSize="16" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" /><TextBlock x:Name="HistoryCpuSummaryText" Text="—" HorizontalAlignment="Right" Foreground="{ThemeResource AccentBrush}" /></Grid>
+                                        <Canvas x:Name="HistoryCpuCanvas" Height="150" SizeChanged="OnHistoryCanvasSizeChanged" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource MetricCardStyle}" Padding="20">
+                                    <StackPanel Spacing="10">
+                                        <Grid><TextBlock Text="Mémoire" FontSize="16" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" /><TextBlock x:Name="HistoryMemorySummaryText" Text="—" HorizontalAlignment="Right" Foreground="{ThemeResource BlueBrush}" /></Grid>
+                                        <Canvas x:Name="HistoryMemoryCanvas" Height="150" SizeChanged="OnHistoryCanvasSizeChanged" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource MetricCardStyle}" Padding="20">
+                                    <StackPanel Spacing="10">
+                                        <Grid><TextBlock Text="Activité réseau" FontSize="16" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" /><TextBlock x:Name="HistoryNetworkSummaryText" Text="—" HorizontalAlignment="Right" Foreground="{ThemeResource AccentBrush}" /></Grid>
+                                        <Canvas x:Name="HistoryNetworkCanvas" Height="150" SizeChanged="OnHistoryCanvasSizeChanged" />
+                                        <TextBlock Text="↓ réception · ↑ envoi" FontSize="11" Foreground="{ThemeResource MutedTextBrush}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource MetricCardStyle}" Padding="20">
+                                    <StackPanel Spacing="10">
+                                        <Grid><TextBlock Text="Activité disque" FontSize="16" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" /><TextBlock x:Name="HistoryDiskSummaryText" Text="—" HorizontalAlignment="Right" Foreground="{ThemeResource BlueBrush}" /></Grid>
+                                        <Canvas x:Name="HistoryDiskCanvas" Height="150" SizeChanged="OnHistoryCanvasSizeChanged" />
+                                        <TextBlock Text="↓ lecture · ↑ écriture" FontSize="11" Foreground="{ThemeResource MutedTextBrush}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource MetricCardStyle}" Padding="20">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Capteurs matériels (PRO)" FontSize="16" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
+                                        <TextBlock x:Name="HardwareSensorsText" Text="Recherche des capteurs compatibles…" Foreground="{ThemeResource MutedTextBrush}" FontSize="13" TextWrapping="Wrap" />
+                                        <TextBlock Text="Les capteurs GPU/température/ventilateur varient selon le matériel et les pilotes; certains peuvent être absents ou nécessiter des droits élevés." Foreground="{ThemeResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
                         </ScrollViewer>
                     </Grid>
+
                 </Grid>
             </NavigationView.Content>
         </NavigationView>

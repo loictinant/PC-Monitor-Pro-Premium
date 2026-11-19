@@ -58,7 +58,10 @@ internal sealed class AppSettings
                 settings.MemoryAlertEnabled,
                 NormalizeThreshold(settings.MemoryThreshold, 85),
                 settings.DiskAlertEnabled,
-                NormalizeThreshold(settings.DiskThreshold, 90));
+                NormalizeThreshold(settings.DiskThreshold, 90),
+                NormalizeChoice(settings.AlertDelaySeconds, [0, 10, 30], 10),
+                NormalizeChoice(settings.AlertCooldownMinutes, [5, 15, 60], 15),
+                settings.QuietHoursEnabled);
         }
         set
         {
@@ -70,7 +73,10 @@ internal sealed class AppSettings
                 MemoryAlertEnabled = value.MemoryEnabled,
                 MemoryThreshold = NormalizeThreshold(value.MemoryThreshold, 85),
                 DiskAlertEnabled = value.DiskEnabled,
-                DiskThreshold = NormalizeThreshold(value.DiskThreshold, 90)
+                DiskThreshold = NormalizeThreshold(value.DiskThreshold, 90),
+                AlertDelaySeconds = NormalizeChoice(value.TriggerDelaySeconds, [0, 10, 30], 10),
+                AlertCooldownMinutes = NormalizeChoice(value.CooldownMinutes, [5, 15, 60], 15),
+                QuietHoursEnabled = value.QuietHoursEnabled
             });
         }
     }
@@ -124,6 +130,9 @@ internal sealed class AppSettings
 
     private static int NormalizeThreshold(int value, int fallback) => value is >= 50 and <= 99 ? value : fallback;
 
+    private static int NormalizeChoice(int value, int[] allowed, int fallback) =>
+        allowed.Contains(value) ? value : fallback;
+
     private sealed record StoredSettings
     {
         public int RefreshIntervalSeconds { get; init; } = DefaultRefreshSeconds;
@@ -137,6 +146,9 @@ internal sealed class AppSettings
         public int MemoryThreshold { get; init; } = 85;
         public bool DiskAlertEnabled { get; init; } = true;
         public int DiskThreshold { get; init; } = 90;
+        public int AlertDelaySeconds { get; init; } = 10;
+        public int AlertCooldownMinutes { get; init; } = 15;
+        public bool QuietHoursEnabled { get; init; }
     }
 }
 
@@ -154,4 +166,7 @@ internal sealed record AlertPreferences(
     bool MemoryEnabled,
     int MemoryThreshold,
     bool DiskEnabled,
-    int DiskThreshold);
+    int DiskThreshold,
+    int TriggerDelaySeconds = 10,
+    int CooldownMinutes = 15,
+    bool QuietHoursEnabled = false);

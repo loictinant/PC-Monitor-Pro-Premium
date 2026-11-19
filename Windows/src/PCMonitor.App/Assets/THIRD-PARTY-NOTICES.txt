@@ -1,0 +1,11 @@
+PC Monitor Pro Premium 0.3.0 includes LibreHardwareMonitorLib 0.9.6.
+
+LibreHardwareMonitor
+Copyright (c) LibreHardwareMonitor contributors
+License: Mozilla Public License 2.0 (MPL-2.0)
+Project: https://github.com/LibreHardwareMonitor/LibreHardwareMonitor
+License text: MPL-2.0.txt (distributed with this application)
+
+The library is used for best-effort local hardware sensor readings. Sensor
+availability depends on the hardware, drivers, Windows permissions, and device
+support. The application does not elevate its privileges automatically.

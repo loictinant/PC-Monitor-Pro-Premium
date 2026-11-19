@@ -1,76 +1,55 @@
-# Architecture technique
+# Architecture technique — PC Monitor Pro Premium 0.3.0
 
-## Choix
+## Plateforme et structure
 
-- **C# / .NET 10 / WinUI 3 / Windows App SDK 2.6.5** : version stable actuelle au 14 novembre 2026, interface XAML, adaptée au catalogue Store et au packaging MSIX.
-- **Windows SDK Build Tools 10.0.26100.9457** : outils de compilation alignés sur le SDK Windows 26100 ciblé. Les versions du SDK Windows et du Windows App SDK sont indépendantes.
-- **MSIX single-project** : le projet WinUI porte son manifeste et produit le paquet sans projet de packaging séparé.
-- **EXE autonome x64** : même projet compilé en mode unpackaged, avec runtime .NET et Windows App SDK auto-contenus. Il sert à tester et pourra servir à une distribution directe après décision produit et vérifications de sécurité.
-- **Pas de dépendance de graphiques tierce au MVP** : un tracé WinUI léger évite d'ajouter une dépendance et permet de garder le paquet compact.
-- **Pas de SQLite au MVP** : les 15 minutes d'historique restent en mémoire. SQLite ne sera ajouté que si l'historique Pro persistant est confirmé.
-
-## Projets et responsabilités
+- **C# / .NET 10 / WinUI 3 / Windows App SDK 2.6.5** : interface native Windows et packaging MSIX à partir d’un seul projet.
+- **Cible** : Windows 10 build 17763 ou ultérieur et Windows 11; sorties actuelles x64. La compatibilité effective doit être validée sur les éditions Windows réellement ciblées.
+- **Collecte/Core** : code sans dépendance WinUI pour faciliter la réutilisation dans d’autres produits.
+- **Licence** : `ProductLicensing.Abstractions` reste indépendante du Store. Chaque application garde son propre adaptateur et sa liste de fonctions implémentées.
+- **Données** : paramètres dans `%LOCALAPPDATA%\PCMonitorPro\settings.json`; historique Premium dans `%LOCALAPPDATA%\PCMonitorPro\history.json`, conservé 24 h avec un intervalle minimal de 15 s.
 
 ```text
 PCMonitorPro.sln
 ├── src/PCMonitor.Core
-│   ├── IMetricsCollector             Contrat des mesures
-│   ├── WindowsMetricsCollector       CPU, mémoire, volumes, réseau
-│   └── MetricsHistory                Historique borné de la session
+│   ├── WindowsMetricsCollector       CPU, mémoire, volumes, réseau, activité disque
+│   ├── PdhDiskActivityReader         Compteurs de lecture/écriture disque Windows
+│   ├── LibreHardwareMetricsReader    Adaptateur facultatif de capteurs matériels
+│   └── MetricsHistory                Échantillons et historique de session
 ├── src/ProductLicensing.Abstractions
-│   ├── ILicenseProvider              Source de l'état de licence
+│   ├── ILicenseProvider              Source de l’état de licence
 │   ├── LicenseState                  Produit, niveau, provenance et échéance
-│   └── IFeatureGate                  Décision d'accès aux fonctions
+│   └── IFeatureGate                  Décision d’accès par fonction
 └── src/PCMonitor.App
-    ├── MainWindow                    Navigation, tableau de bord et réglages
-    ├── AppSettings                   Intervalle, zone de notification, démarrage, thème
-    ├── ProductFeatureGate            Verrouillage des droits Pro
-    ├── AlertEvaluator                Évaluation locale des seuils d'alerte
-    ├── Package.appxmanifest          Identité provisoire et entrée MSIX
-    └── Build modes                   MSIX par défaut ou EXE via propriétés MSBuild
-CHANGELOG.md                          Journal affiché dans la page Historique
+    ├── MainWindow                    Navigation, tableaux de bord, graphiques et paramètres
+    ├── PersistentMetricsHistory      Écriture/lecture locale avec rétention 24 h
+    ├── AlertEvaluator                Délai, seuil, réarmement, répétition et heures calmes
+    ├── MicrosoftStoreLicenseProvider Achat et vérification du module durable
+    └── Package.appxmanifest          Identité Store et entrée MSIX
 ```
 
-La couche Core ne connaît ni WinUI, ni le Microsoft Store, ni le futur service de licence. Les autres produits du catalogue pourront référencer `ProductLicensing.Abstractions` et fournir leur propre adaptateur. Une licence doit être interprétée par produit (identifiant de produit et fonctions) ; il ne faut pas faire confiance à un booléen caché uniquement dans l'interface. Dans le candidat 0.2.0, la licence de développement est toujours gratuite; les alertes sont vérifiées par le FeatureGate avant leur évaluation et sont donc inactives dans le gratuit.
+## Mesures et limites
 
-## Collecte des mesures
+- **CPU** : différence entre les compteurs `GetSystemTimes`; la première lecture sert à initialiser les compteurs.
+- **Mémoire** : `GlobalMemoryStatusEx`, mémoire physique totale et disponible.
+- **Volumes** : `DriveInfo`, volumes fixes prêts; capacité et espace disponible.
+- **Réseau** : compteurs cumulatifs de chaque adaptateur actif puis débit par différence; le tableau de bord affiche les deux premiers et le total. Les interfaces loopback et tunnel sont exclues pour limiter les doublons de trafic virtuel.
+- **Activité disque** : compteurs PDH anglais `PhysicalDisk(_Total)\Disk Read Bytes/sec` et `Disk Write Bytes/sec`; peut afficher « indisponible » si Windows n’expose pas ces compteurs.
+- **Historique gratuit** : buffer mémoire borné; graphique CPU sur 15 minutes. Aucun relevé n’est écrit de façon persistante en mode gratuit.
+- **Historique Premium** : échantillonnage local au plus toutes les 15 secondes, rétention 24 h, écriture du fichier environ chaque minute et à la fermeture. Les graphiques couvrent CPU, mémoire, réseau et activité disque sur 1 h, 6 h ou 24 h.
+- **Export CSV** : fichier choisi explicitement par l’utilisateur; inclut horodatage, mesures disponibles et noms/débits des adaptateurs. Les données ne sont pas envoyées par l’application.
 
-- **CPU** : P/Invoke `GetSystemTimes`, comparaison de deux relevés. La première mesure sert à initialiser les compteurs et peut afficher 0 %.
-- **Mémoire** : P/Invoke `GlobalMemoryStatusEx`, mémoire physique totale et disponible.
-- **Disques** : `DriveInfo`, volumes fixes prêts ; mesures de capacité seulement.
-- **Réseau** : `NetworkInterface` et compteurs cumulatifs des interfaces actives. Le débit est la différence en octets sur le temps écoulé. Les interfaces loopback et tunnel sont ignorées.
-- **Rafraîchissement** : un seul timer UI ; une collecte en cours est empêchée de se chevaucher avec la suivante.
-- **Historique** : buffer borné de 900 points ; le graphique présente les 60 points les plus récents. La valeur maximale correspond à 15 minutes avec un rafraîchissement à une seconde.
+Les collectes sont locales. L’application n’exige pas d’élévation automatique et ne démarre pas de service. Les permissions Windows de l’utilisateur protègent les fichiers locaux; ils ne sont pas chiffrés par l’application.
 
-## Sorties de build prévues
+## Capteurs GPU, températures et ventilateurs
 
-### MSIX
-
-Le projet est configuré en mode packagé par défaut, avec un manifeste et une identité provisoire `PCMonitorPro.Local`. Avant une soumission Store, l'identité, l'éditeur, les logos, les versions, les architectures et la configuration Store devront être remplacés par les données réelles du compte éditeur. La création d'un paquet de test et son installation locale nécessitent un certificat de développement approuvé ; ne pas distribuer cette identité provisoire.
-
-### EXE
-
-`scripts/Build-Exe.ps1` force `WindowsPackageType=None` et publie une application autonome x64 en mono-fichier dans un dossier versionné. Windows App SDK impose l'extraction de composants au premier lancement pour la redirection des DLL; vérifier le comportement sur un PC propre avant de présenter cette sortie comme un installateur.
+`LibreHardwareMonitorLib` 0.9.6 est chargé comme source facultative et best-effort. Il expose uniquement les capteurs publiés par le matériel et le pilote. Les appareils sans capteur compatible affichent « non disponible sur ce PC ». Certains capteurs peuvent nécessiter des droits élevés, indisponibles depuis une application Store standard; l’application ne demande pas d’élévation. Les valeurs GPU/CPU/ventilateur ne sont donc pas garanties universellement. Les notices et la licence MPL-2.0 sont dans `src/PCMonitor.App/Assets/`.
 
 ## Licence et commerce
 
-`ProductLicensing.Abstractions` définit un contrat stable et sans dépendance à Microsoft Store. PC Monitor Pro Premium utilise un adaptateur `Windows.Services.Store`: le paquet Store lit l'entitlement d'une extension durable et demande l'achat unique via `StoreContext`. L'EXE autonome ne tente pas d'achat et ouvre la fiche Store (ID `9P34JVNCWKJJ`). L'extension Premium durable est créée en brouillon (Store ID `9MTVFWCM41XS`, Product ID `PCMONITORPRO_PREMIUM_LIFETIME`); le script MSIX ajoute ces IDs aux métadonnées d'assembly. Voir `docs/LICENCE_MICROSOFT_STORE.md`.
+Le produit parent Microsoft Store est `9P34JVNCWKJJ`; l’extension Premium durable est `9MTVFWCM41XS` (`PCMONITORPRO_PREMIUM_LIFETIME`). Une licence valide active les fonctions marquées `(PRO)` via `ProductFeatureGate`; toute fonction livrée doit être ajoutée à sa liste d’implémentation et vérifiée indépendamment du rendu UI.
 
-L’offre Premium unique est prévue pour regrouper les fonctions marquées `(PRO)`. Dans la version 0.2.2, seules les alertes sont implémentées et protégées au point d’évaluation et dans l’interface. Les autres fonctions restent affichées comme étant à venir jusqu’à leur implémentation. Ne pas mettre de secret ou de prix en dur côté client.
+L’EXE autonome reste gratuit et ouvre la fiche Store pour l’achat. Le `.msixupload` est construit pour Partner Center et sera signé par le Store après certification. Aucun certificat privé n’est nécessaire dans le dépôt.
 
-## GPU et températures : faisabilité séparée
+## Historique et versionnement
 
-### Utilisation et mémoire GPU
-
-Faisable comme module facultatif, mais pas assez uniforme pour promettre une mesure à tous les utilisateurs. Les compteurs GPU Windows peuvent exposer l'activité par moteur et la mémoire, selon la version de Windows, le pilote WDDM, le matériel et la présence du compteur. Une future implémentation devra énumérer les compteurs réellement disponibles et afficher « indisponible » quand l'information manque. Les métriques d'un GPU intégré, d'un GPU dédié et de systèmes à plusieurs GPU ne se résument pas toujours à une valeur unique.
-
-### Température CPU/GPU et ventilateurs
-
-Non retenu pour le MVP. Windows ne fournit pas une API desktop universelle garantissant ces températures sur toutes les cartes et tous les pilotes. L'ancienne Sensor API de Windows est dépréciée ; le chemin réaliste est un adaptateur optionnel par fournisseur ou une bibliothèque tierce dont la licence, la compatibilité MSIX et la politique de mise à jour auront été examinées. Les capteurs ACPI de carte mère ne garantissent pas la température du CPU ou du GPU. La fonction ne devra apparaître que lorsqu'une source fiable fournit la donnée et l'unité.
-
-## Limites connues
-
-- Les compteurs réseau sont agrégés et peuvent inclure trafic local, VPN ou Wi-Fi selon la classification de l'interface.
-- Les volumes réseau et lecteurs amovibles sont exclus du panneau disque initial.
-- Les valeurs système reflètent des compteurs Windows ; elles peuvent différer légèrement d'autres outils selon le lissage et l'intervalle.
-- L'identité MSIX, l'éditeur, les visuels Store, la signature, les SKU de licence et le support ARM64 ne sont pas prêts pour distribution.
+Le journal des versions reste dans `CHANGELOG.md` et n’est pas embarqué comme page de l’application. Les versions Windows et Store sont incrémentées dans `PCMonitor.App.csproj` et `Package.appxmanifest`.

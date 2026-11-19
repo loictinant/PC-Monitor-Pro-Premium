@@ -4,10 +4,10 @@
          xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
          IgnorableNamespaces="uap uap5 rescap">
-  <Identity Name="PCMonitorPro.Local" Publisher="CN=PC Monitor Pro Development" Version="0.2.2.0" ProcessorArchitecture="$PLATFORM$" />
+  <Identity Name="TINANTLOIC.PCMonitorProPremium" Publisher="CN=D67E21A8-DC00-45EF-86D1-375158FB659F" Version="0.3.0.0" ProcessorArchitecture="$PLATFORM$" />
   <Properties>
     <DisplayName>PC Monitor Pro Premium</DisplayName>
-    <PublisherDisplayName>PC Monitor Pro Premium — développement local</PublisherDisplayName>
+    <PublisherDisplayName>TINANT LOIC</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
   <Dependencies>

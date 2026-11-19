@@ -11,6 +11,24 @@ public sealed record DiskVolumeSnapshot(
     public double UsedPercent => TotalBytes == 0 ? 0 : UsedBytes * 100d / TotalBytes;
 }
 
+public sealed record NetworkInterfaceSnapshot(
+    string Id,
+    string Name,
+    double DownloadBytesPerSecond,
+    double UploadBytesPerSecond);
+
+public sealed record HardwareMetricsSnapshot(
+    string? GpuName,
+    double? GpuLoadPercent,
+    ulong? GpuMemoryUsedBytes,
+    ulong? GpuMemoryTotalBytes,
+    double? GpuTemperatureCelsius,
+    double? CpuTemperatureCelsius,
+    double? FanSpeedRpm)
+{
+    public static HardwareMetricsSnapshot Empty { get; } = new(null, null, null, null, null, null, null);
+}
+
 public sealed record MetricSnapshot(
     DateTimeOffset CapturedAt,
     double? CpuUsagePercent,
@@ -18,7 +36,11 @@ public sealed record MetricSnapshot(
     ulong? AvailablePhysicalBytes,
     double DownloadBytesPerSecond,
     double UploadBytesPerSecond,
-    IReadOnlyList<DiskVolumeSnapshot> Disks)
+    IReadOnlyList<DiskVolumeSnapshot> Disks,
+    IReadOnlyList<NetworkInterfaceSnapshot> NetworkInterfaces,
+    double? DiskReadBytesPerSecond,
+    double? DiskWriteBytesPerSecond,
+    HardwareMetricsSnapshot Hardware)
 {
     public ulong? UsedPhysicalBytes => TotalPhysicalBytes is ulong total && AvailablePhysicalBytes is ulong available
         ? total >= available ? total - available : 0
@@ -34,4 +56,12 @@ public sealed record MetricSample(
     double? CpuUsagePercent,
     double? MemoryUsagePercent,
     double DownloadBytesPerSecond,
-    double UploadBytesPerSecond);
+    double UploadBytesPerSecond,
+    double? DiskReadBytesPerSecond = null,
+    double? DiskWriteBytesPerSecond = null,
+    double? GpuLoadPercent = null,
+    ulong? GpuMemoryUsedBytes = null,
+    ulong? GpuMemoryTotalBytes = null,
+    double? GpuTemperatureCelsius = null,
+    double? CpuTemperatureCelsius = null,
+    IReadOnlyList<NetworkInterfaceSnapshot>? NetworkInterfaces = null);
