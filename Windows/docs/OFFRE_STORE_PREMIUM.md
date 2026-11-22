@@ -19,11 +19,11 @@ Ce document prépare les champs à compléter dans Partner Center. Il ne constit
 
 ## Description courte proposée
 
-Débloquez les fonctions marquées (PRO) de PC Monitor Pro Premium avec un achat unique. Les fonctions indiquées « à venir » ne sont pas encore disponibles.
+Débloquez les fonctions marquées (PRO) de PC Monitor Pro Premium avec un achat unique : historique, graphiques, CSV, rapports, intervalles avancés et alertes. Les capteurs dépendent du matériel.
 
 ## Description détaillée proposée
 
-L’achat unique PC Monitor Pro Premium donne accès aux fonctions marquées (PRO) dès qu’elles sont disponibles dans l’application. La version actuelle comprend les alertes personnalisées du processeur, de la mémoire et des disques. L’historique persistant, les graphiques avancés, l’export CSV et les données GPU/température sont prévus pour des versions ultérieures et ne sont pas encore disponibles. Les capteurs dépendront du matériel et des pilotes pris en charge.
+L’achat unique PC Monitor Pro Premium donne accès aux fonctions marquées (PRO) : alertes personnalisées du processeur, de la mémoire et des disques; historique local jusqu’à 24 heures; graphiques CPU, mémoire, réseau et activité disque sur 1 h, 6 h ou 24 h; export CSV; rapports HTML imprimables; et actualisation toutes les 15, 30 ou 60 secondes. La charge GPU, la mémoire vidéo, les températures et les ventilateurs apparaissent lorsque le matériel et les pilotes les exposent. Les relevés restent sur l’appareil.
 
 L’offre est achetée uniquement dans la version Microsoft Store. L’EXE autonome renvoie vers la fiche de l’application dans le Microsoft Store.
 
@@ -33,11 +33,12 @@ La fiche de localisation de l’extension propose un nom de produit (100 caract�
 
 ## Fonctions Premium prévues
 
-- Alertes personnalisées CPU, mémoire et disques — implémentées, activation via licence Store à valider.
-- Historique persistant jusqu’à 24 h — à développer.
-- Graphiques avancés et intervalle étendu — à développer.
-- Export CSV et rapports — à développer.
-- Surveillance GPU, mémoire vidéo, températures et ventilateurs — à étudier selon les API, matériels et pilotes disponibles.
+- Alertes personnalisées CPU, mémoire et disques — implémentées; activation par licence Store dans le code.
+- Historique persistant jusqu’à 24 h — implémenté; rétention locale et échantillonnage limité.
+- Graphiques avancés sur 1 h, 6 h et 24 h — implémentés.
+- Intervalle étendu 15/30/60 secondes — implémenté et protégé par la licence Pro.
+- Export CSV et rapport HTML imprimable — implémentés.
+- Surveillance GPU, mémoire vidéo, températures et ventilateurs — lecture best-effort; valeurs tributaires du matériel, des pilotes et des droits disponibles.
 
 ## Préparation de la déclaration de confidentialité
 

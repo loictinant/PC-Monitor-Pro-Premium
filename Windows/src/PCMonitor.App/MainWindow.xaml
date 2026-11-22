@@ -228,13 +228,16 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Spacing="6" VerticalAlignment="Center">
                                     <TextBlock Text="Intervalle de rafraîchissement" FontSize="16" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
-                                    <TextBlock Text="Un intervalle plus long réduit l'activité de collecte." FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                    <TextBlock Text="Les intervalles 15, 30 et 60 secondes sont réservés à Premium (PRO)." FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
                                 </StackPanel>
                                 <ComboBox x:Name="SettingsRefreshIntervalComboBox" Grid.Column="1" VerticalAlignment="Center" SelectionChanged="OnRefreshIntervalChanged">
                                     <ComboBoxItem Content="Chaque seconde" Tag="1" />
                                     <ComboBoxItem Content="Toutes les 2 secondes" Tag="2" />
                                     <ComboBoxItem Content="Toutes les 5 secondes" Tag="5" />
                                     <ComboBoxItem Content="Toutes les 10 secondes" Tag="10" />
+                                    <ComboBoxItem Content="Toutes les 15 secondes (PRO)" Tag="15" />
+                                    <ComboBoxItem Content="Toutes les 30 secondes (PRO)" Tag="30" />
+                                    <ComboBoxItem Content="Toutes les 60 secondes (PRO)" Tag="60" />
                                 </ComboBox>
                             </Grid>
                         </Border>
@@ -400,11 +403,11 @@
                     <Grid x:Name="AboutView" Visibility="Collapsed" Margin="30,24,30,24">
                         <StackPanel Spacing="12">
                             <TextBlock Text="PC Monitor Pro Premium" FontSize="28" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
-                            <TextBlock Text="Version 0.3.0" FontSize="14" Foreground="{ThemeResource MutedTextBrush}" />
+                            <TextBlock Text="Version 0.4.0" FontSize="14" Foreground="{ThemeResource MutedTextBrush}" />
                             <TextBlock Text="Développé par LOIC TINANT" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}" />
                             <HyperlinkButton Content="Projet GitHub" NavigateUri="https://github.com/loictinant/PC-Monitor-Pro-Premium" />
                             <HyperlinkButton Content="Site internet" NavigateUri="https://loic-apps.duckdns.org/" />
-                            <TextBlock Text="La version gratuite comprend les mesures locales, le réseau par adaptateur, l’activité disque et un graphique de session sur 15 minutes. Premium ajoute l’historique local sur 24 h, les graphiques avancés, l’export CSV, les alertes réglables et les capteurs matériels disponibles." FontSize="13" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" MaxWidth="620" />
+                            <TextBlock Text="La version gratuite comprend les mesures locales, le réseau par adaptateur, l’activité disque et un graphique de session sur 15 minutes. Premium ajoute l’historique local sur 24 h, les graphiques avancés, les exports CSV, les rapports, les intervalles étendus, les alertes réglables et les capteurs matériels disponibles." FontSize="13" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" MaxWidth="620" />
                         </StackPanel>
                     </Grid>
 
@@ -443,6 +446,8 @@
                                     <Button Content="Alertes CPU, mémoire et disques (PRO)" Tag="alerts" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                                     <Button Content="Graphiques avancés 1 h / 6 h / 24 h (PRO)" Tag="advanced-charts" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                                     <Button Content="Exporter l’historique en CSV (PRO)" Tag="csv-export" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                    <Button Content="Créer un rapport de performances (PRO)" Tag="performance-reports" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                    <Button Content="Intervalle étendu : 15, 30 ou 60 s (PRO)" Tag="extended-refresh-interval" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                                     <Button Content="Charge GPU et mémoire vidéo (PRO)" Tag="hardware-sensors" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                                     <Button Content="Température CPU/GPU et ventilateurs (PRO)" Tag="hardware-sensors" Click="OnProFeatureClicked" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                                     <Button Content="Acheter Premium dans le Microsoft Store" Click="OnShowProOfferClicked" HorizontalAlignment="Left" Margin="0,4,0,0" />
@@ -456,7 +461,7 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Spacing="16">
                                 <Grid ColumnSpacing="16">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="Historique Premium (PRO)" FontSize="28" FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
                                         <TextBlock x:Name="HistoryStatusText" Text="Historique local des dernières 24 heures." FontSize="13" Foreground="{ThemeResource MutedTextBrush}" />
@@ -464,7 +469,8 @@
                                     <ComboBox x:Name="HistoryRangeComboBox" Grid.Column="1" Width="130" VerticalAlignment="Center" SelectionChanged="OnHistoryRangeChanged">
                                         <ComboBoxItem Content="Dernière heure" Tag="1" /><ComboBoxItem Content="6 dernières heures" Tag="6" /><ComboBoxItem Content="24 dernières heures" Tag="24" />
                                     </ComboBox>
-                                    <Button Grid.Column="2" Content="Exporter CSV" Click="OnExportCsvClicked" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Content="Rapport HTML (PRO)" Click="OnGeneratePerformanceReportClicked" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <Button Grid.Column="3" Content="Exporter CSV (PRO)" Click="OnExportCsvClicked" VerticalAlignment="Center" />
                                 </Grid>
                                 <Border Style="{StaticResource MetricCardStyle}" Padding="20">
                                     <StackPanel Spacing="10">

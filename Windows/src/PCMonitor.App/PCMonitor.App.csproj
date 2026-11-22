@@ -11,10 +11,10 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>PCMonitorPro</AssemblyName>
     <RootNamespace>PCMonitor.App</RootNamespace>
-    <Version>0.3.0</Version>
-    <AssemblyVersion>0.3.0.0</AssemblyVersion>
-    <FileVersion>0.3.0.0</FileVersion>
-    <InformationalVersion>0.3.0</InformationalVersion>
+    <Version>0.4.0</Version>
+    <AssemblyVersion>0.4.0.0</AssemblyVersion>
+    <FileVersion>0.4.0.0</FileVersion>
+    <InformationalVersion>0.4.0</InformationalVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -22,7 +22,7 @@
     <AppxPackageIdentityName>TINANTLOIC.PCMonitorProPremium</AppxPackageIdentityName>
     <AppxPackageDisplayName>PC Monitor Pro Premium</AppxPackageDisplayName>
     <AppxPackagePublisher>CN=D67E21A8-DC00-45EF-86D1-375158FB659F</AppxPackagePublisher>
-    <AppxPackageVersion>0.3.0.0</AppxPackageVersion>
+    <AppxPackageVersion>0.4.0.0</AppxPackageVersion>
     <AppxManifest>Package.appxmanifest</AppxManifest>
   </PropertyGroup>
   <PropertyGroup Condition="'$(PCMonitorProPremiumTest)' == 'true'">

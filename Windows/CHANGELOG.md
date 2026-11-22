@@ -2,6 +2,13 @@
 
 Ce fichier conserve le journal de développement du projet. Il n’est plus embarqué ni affiché dans l’application.
 
+## 0.4.0 — 2026-11-22 — Rapports et intervalles Premium
+
+- Premium : choix d’un rafraîchissement plus espacé, toutes les 15, 30 ou 60 secondes. Ces options restent verrouillées sans licence Pro; l’édition gratuite conserve ses choix de 1 à 10 secondes.
+- Premium : création d’un rapport HTML autonome à partir de la période sélectionnée (1 h, 6 h ou 24 h), avec statistiques min./moy./max., courbe CPU/mémoire, capteurs disponibles et impression en PDF depuis un navigateur. Le CSV inclut maintenant la vitesse du ventilateur lorsqu’elle est exposée.
+- Le rapport est généré localement, enregistré à l’emplacement choisi et indique clairement les capteurs non disponibles.
+- Version de l’application incrémentée à 0.4.0. Le `.msixupload` x64 a été généré localement; il n’a pas encore été envoyé à Partner Center.
+
 ## 0.3.0 — 2026-11-19 — Nouvelles fonctions gratuites et Premium
 
 - Gratuit : affichage des débits réseau par adaptateur, activité disque en lecture/écriture, historique CPU de session sur 15 minutes et infobulle de zone de notification avec CPU, mémoire et réseau.

@@ -64,4 +64,5 @@ public sealed record MetricSample(
     ulong? GpuMemoryTotalBytes = null,
     double? GpuTemperatureCelsius = null,
     double? CpuTemperatureCelsius = null,
-    IReadOnlyList<NetworkInterfaceSnapshot>? NetworkInterfaces = null);
+    IReadOnlyList<NetworkInterfaceSnapshot>? NetworkInterfaces = null,
+    double? FanSpeedRpm = null);

@@ -15,11 +15,11 @@ internal sealed class AppSettings
         get
         {
             var value = Load().RefreshIntervalSeconds;
-            return value is 1 or 2 or 5 or 10 ? value : DefaultRefreshSeconds;
+            return value is 1 or 2 or 5 or 10 or 15 or 30 or 60 ? value : DefaultRefreshSeconds;
         }
         set
         {
-            if (value is 1 or 2 or 5 or 10)
+            if (value is 1 or 2 or 5 or 10 or 15 or 30 or 60)
             {
                 Save(Load() with { RefreshIntervalSeconds = value });
             }

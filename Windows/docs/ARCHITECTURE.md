@@ -1,4 +1,4 @@
-# Architecture technique — PC Monitor Pro Premium 0.3.0
+# Architecture technique — PC Monitor Pro Premium 0.4.0
 
 ## Plateforme et structure
 
@@ -37,6 +37,8 @@ PCMonitorPro.sln
 - **Historique gratuit** : buffer mémoire borné; graphique CPU sur 15 minutes. Aucun relevé n’est écrit de façon persistante en mode gratuit.
 - **Historique Premium** : échantillonnage local au plus toutes les 15 secondes, rétention 24 h, écriture du fichier environ chaque minute et à la fermeture. Les graphiques couvrent CPU, mémoire, réseau et activité disque sur 1 h, 6 h ou 24 h.
 - **Export CSV** : fichier choisi explicitement par l’utilisateur; inclut horodatage, mesures disponibles et noms/débits des adaptateurs. Les données ne sont pas envoyées par l’application.
+- **Rapport Premium** : génère un document HTML autonome depuis la période choisie. Il présente les statistiques min./moy./max. disponibles, une courbe CPU/mémoire et les capteurs matériels lorsque présents; le navigateur peut l’imprimer en PDF. Le chemin d’enregistrement est choisi par l’utilisateur. L’export CSV comprend les champs capteurs disponibles, y compris la vitesse du ventilateur.
+- **Intervalle Premium étendu** : 15, 30 ou 60 secondes. Les options gratuites restent à 1, 2, 5 et 10 secondes; une licence valide est requise pour sélectionner les intervalles étendus.
 
 Les collectes sont locales. L’application n’exige pas d’élévation automatique et ne démarre pas de service. Les permissions Windows de l’utilisateur protègent les fichiers locaux; ils ne sont pas chiffrés par l’application.
 
@@ -52,4 +54,4 @@ L’EXE autonome reste gratuit et ouvre la fiche Store pour l’achat. Le `.msix
 
 ## Historique et versionnement
 
-Le journal des versions reste dans `CHANGELOG.md` et n’est pas embarqué comme page de l’application. Les versions Windows et Store sont incrémentées dans `PCMonitor.App.csproj` et `Package.appxmanifest`.
+Le journal des versions reste dans `CHANGELOG.md` et n’est pas embarqué comme page de l’application. Les versions Windows et Store sont incrémentées dans `PCMonitor.App.csproj` et `Package.appxmanifest`. Les fonctions rapport et intervalle étendu sont ajoutées à la liste des fonctions activables uniquement après implémentation et vérification de licence.

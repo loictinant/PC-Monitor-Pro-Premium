@@ -9,6 +9,8 @@ internal static class ProductFeatures
     public const string CsvExport = "csv-export";
     public const string AdvancedCharts = "advanced-charts";
     public const string HardwareSensors = "hardware-sensors";
+    public const string ExtendedRefreshInterval = "extended-refresh-interval";
+    public const string PerformanceReports = "performance-reports";
 }
 
 /// <summary>
@@ -23,7 +25,9 @@ internal sealed class ProductFeatureGate : IFeatureGate
         ProductFeatures.PersistentHistory,
         ProductFeatures.CsvExport,
         ProductFeatures.AdvancedCharts,
-        ProductFeatures.HardwareSensors
+        ProductFeatures.HardwareSensors,
+        ProductFeatures.ExtendedRefreshInterval,
+        ProductFeatures.PerformanceReports
     ];
 
     public bool IsEnabled(string featureId, LicenseState license) =>

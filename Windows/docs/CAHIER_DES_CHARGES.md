@@ -17,51 +17,53 @@ Fournir une application Windows de bureau claire et légère qui affiche en dire
 | --- | --- |
 | CPU | Charge globale en pourcentage, calculée à partir des temps système Windows. |
 | Mémoire | Mémoire physique utilisée et disponible, taille totale, barre de progression. |
-| Disques | Volumes fixes prêts, espace utilisé/libre, capacité. Pas de mesure d'IO disque au MVP. |
-| Réseau | Débits agrégés reçus et envoyés, calculés à partir des compteurs des interfaces actives. |
-| Rafraîchissement | 1, 2, 5 ou 10 secondes, choix conservé localement ; pause/reprise et actualisation manuelle. |
-| Historique | Historique de session borné à 15 minutes, affichage des 60 derniers points. Pas d'envoi réseau ni de collecte en arrière-plan lorsque l'application est fermée. |
+| Disques | Volumes fixes prêts, espace utilisé/libre, capacité et activité globale de lecture/écriture si les compteurs Windows sont disponibles. |
+| Réseau | Débits reçus et envoyés, total et par adaptateur actif. |
+| Rafraîchissement | Gratuit : 1, 2, 5 ou 10 secondes. Pro : 15, 30 ou 60 secondes. Choix conservé localement ; pause/reprise et actualisation manuelle. |
+| Historique | Gratuit : historique de session en mémoire sur 15 minutes. Pro : historique local persistant limité à 24 h, échantillonné au plus toutes les 15 secondes. Pas d'envoi des relevés ni de collecte quand l'application est fermée. |
 | Interface | Tableau de bord, réglages simples, état de collecte lisible, unités adaptées, thèmes automatique/clair/sombre. |
 | Historique des versions | Journal versionné conservé dans `CHANGELOG.md` comme documentation du projet; il n’est pas affiché dans l’application. |
-| Installation | EXE autonome x64 pour les essais et paquet MSIX x64 préparé pour validation Store. |
+| Installation | EXE autonome x64 gratuit pour les essais. Le MSIX x64 doit être reconstruit et revalidé pour chaque version envoyée au Store. |
 
 ## Modèle gratuit / Pro proposé
 
-Le MVP livré dans ce dépôt reste gratuit et n'effectue aucun achat.
+La version gratuite reste utilisable sans achat. Dans le package Microsoft Store, l’application utilise le module durable pour vérifier l’achat Premium. Les EXE de développement n’effectuent aucun achat; le build Premium de test simule la licence localement.
 
-| Gratuit | Pro, phase ultérieure |
+| Gratuit | Premium (PRO), achat unique dans le Microsoft Store |
 | --- | --- |
-| CPU, mémoire, disques et réseau en direct | Historique persistant jusqu'à 24 h, après validation de l'impact disque |
-| Historique de session jusqu'à 15 min | Historique persistant jusqu'à 24 h (PRO), après validation de l'impact disque |
-| Rafraîchissement configurable | Alertes CPU, mémoire et disque (PRO), verrouillées dans l’édition gratuite |
-| Préférences locales et thèmes | Graphiques avancés, intervalle étendu et export CSV (PRO) |
-| — | GPU, mémoire vidéo, températures et ventilateurs (PRO), uniquement si une source fiable existe pour le matériel |
+| CPU, mémoire, disques et réseau en direct | Alertes personnalisées CPU, mémoire et espace disque |
+| Historique de session en mémoire jusqu'à 15 min | Historique local persistant jusqu'à 24 h |
+| Actualisation 1, 2, 5 ou 10 secondes | Actualisation étendue 15, 30 ou 60 secondes |
+| Préférences locales et thèmes | Graphiques CPU, mémoire, réseau et activité disque sur 1 h, 6 h ou 24 h |
+| — | Export CSV et rapports HTML imprimables |
+| — | Charge GPU, mémoire vidéo, températures et ventilateurs si exposés par le matériel/pilote |
 
-Les fonctions de base restent utiles sans paiement. Le système de licence est abstrait dans une bibliothèque réutilisable et un adaptateur Microsoft Store est présent. L’extension durable est créée en brouillon; l’activation payante réelle ne peut pas être validée avant publication de l’application parente et installation d’une version de test via le Store.
+Les fonctions de base restent utiles sans paiement. Le système de licence est abstrait dans une bibliothèque réutilisable et l’adaptateur Microsoft Store est séparé de l’interface. La licence réelle doit être vérifiée avec un package Store et un droit Premium actif; l’EXE de test utilise uniquement une licence simulée.
 
-L’offre Premium est un achat unique qui regroupe les fonctions marquées `(PRO)`. Les options Pro sont visibles afin d’expliquer l’offre. Les fonctions encore à venir restent identifiées comme telles; leur activation affiche un message d’information au lieu de prétendre les débloquer.
+L’offre Premium est un achat unique qui regroupe les fonctions marquées `(PRO)`. Les options Pro restent visibles dans la version gratuite; leur activation affiche le parcours Microsoft Store et ne lance pas la fonction sans licence valide.
 
-## Hors MVP
+## Fonctions hors périmètre actuel
 
-- La collecte réelle des mesures GPU/température, l’historique persistant et l’export CSV ne sont pas implémentés.
-- Les alertes ont une interface et un service local, mais restent verrouillées dans l’édition gratuite. Leur déverrouillage réel dépend de l’extension durable Microsoft Store, créée en brouillon mais pas encore soumise.
-- Surveillance par processus, services Windows, contrôle à distance, collecte cloud.
-- Connexion ou intégration Home Assistant ; ce produit reste un utilitaire Windows local.
+- Surveillance détaillée par processus, contrôle à distance et collecte cloud.
+- Intégration Home Assistant; le produit reste un utilitaire Windows local.
+- La disponibilité GPU, mémoire vidéo, températures et ventilateurs varie selon le matériel, les pilotes et les droits fournis par Windows.
 
 ## Confidentialité et sécurité
 
 - Les valeurs sont collectées localement et affichées dans le processus de l'application.
-- Aucune permission réseau, élévation, compte utilisateur, télémétrie ou publicité au MVP.
+- Aucune télémétrie, publicité ni envoi de relevés. La vérification/transaction de licence utilise Microsoft Store dans la version empaquetée.
 - Aucun contenu personnel n'est lu. Les libellés de volume sont affichés uniquement pour aider à distinguer les lecteurs.
-- L'historique est borné en mémoire et est effacé à la fermeture.
+- L'historique gratuit est borné en mémoire et effacé à la fermeture. L’historique Pro est enregistré localement, conservé 24 h et peut être supprimé depuis le profil Windows.
 
 ## Critères d'acceptation du MVP
 
 1. L'application démarre sur Windows 10/11 compatible sans privilèges administrateur.
 2. Les quatre cartes affichent une valeur ou un état « indisponible », jamais une valeur trompeuse quand une mesure échoue.
-3. Le CPU est compris entre 0 et 100 % et se met à jour selon l'intervalle choisi.
+3. Le CPU est compris entre 0 et 100 % et se met à jour selon l'intervalle choisi; un utilisateur gratuit ne peut pas activer 15/30/60 secondes.
 4. La mémoire et les volumes affichent valeurs et unités cohérentes ; les lecteurs non prêts sont ignorés sans faire échouer le tableau de bord.
 5. Les débits réseau sont calculés entre deux relevés, ne sont pas négatifs et repartent à zéro après une remise à zéro des compteurs.
 6. Pause, reprise, rafraîchissement manuel, navigation et persistance de l'intervalle fonctionnent.
-7. L'historique reste borné, s'efface à la fermeture et ne déclenche aucune écriture disque.
-8. L'EXE x64 démarre sur une machine propre avec les composants embarqués, et le MSIX est généré et validé sur une machine outillée.
+7. L'historique gratuit reste en mémoire; l'historique Pro persistant est borné à 24 h et écrit uniquement dans le profil local.
+8. Les fonctions Premium sont protégées par la licence dans l’application et le parcours gratuit ouvre l’offre du Microsoft Store.
+9. Le rapport HTML est un fichier autonome imprimable; il est créé uniquement à la demande et à l’emplacement choisi.
+10. L'EXE x64 démarre sur une machine propre avec les composants embarqués; le MSIX est reconstruit et validé sur une machine outillée avant chaque distribution Store.

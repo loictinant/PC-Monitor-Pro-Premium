@@ -10,6 +10,7 @@ using PCMonitor.Core;
 using ProductLicensing.Abstractions;
 using System.Diagnostics;
 using System.Globalization;
+using System.Net;
 using System.Text;
 using System.Windows.Input;
 using Windows.Storage;
@@ -79,17 +80,17 @@ public sealed partial class MainWindow : Window
 
         InitializeAlertControls();
         UpdateLicenseDependentUi();
-        _ = RefreshLicenseStateAsync();
-
         RootNavigation.SelectedItem = RootNavigation.MenuItems.OfType<NavigationViewItem>().First();
-        SelectRefreshInterval(_settings.RefreshIntervalSeconds);
+        var startupInterval = _settings.RefreshIntervalSeconds <= 10 ? _settings.RefreshIntervalSeconds : 2;
+        SelectRefreshInterval(startupInterval);
 
         _timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-        _timer.Interval = TimeSpan.FromSeconds(_settings.RefreshIntervalSeconds);
+        _timer.Interval = TimeSpan.FromSeconds(startupInterval);
         _timer.IsRepeating = true;
         _timer.Tick += OnTimerTick;
         _timer.Start();
 
+        _ = RefreshLicenseStateAsync();
         _ = RefreshMetricsAsync();
     }
 
@@ -548,6 +549,8 @@ public sealed partial class MainWindow : Window
 
     private async void OnExportCsvClicked(object sender, RoutedEventArgs args) => await ExportHistoryCsvAsync();
 
+    private async void OnGeneratePerformanceReportClicked(object sender, RoutedEventArgs args) => await GeneratePerformanceReportAsync();
+
     private async Task ExportHistoryCsvAsync()
     {
         if (!IsProFeatureEnabled(ProductFeatures.CsvExport))
@@ -575,7 +578,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            var csv = new StringBuilder("timestamp,cpu_percent,memory_percent,download_bytes_per_second,upload_bytes_per_second,disk_read_bytes_per_second,disk_write_bytes_per_second,gpu_load_percent,gpu_memory_used_bytes,gpu_memory_total_bytes,gpu_temperature_c,cpu_temperature_c,network_interfaces\r\n");
+            var csv = new StringBuilder("timestamp,cpu_percent,memory_percent,download_bytes_per_second,upload_bytes_per_second,disk_read_bytes_per_second,disk_write_bytes_per_second,gpu_load_percent,gpu_memory_used_bytes,gpu_memory_total_bytes,gpu_temperature_c,cpu_temperature_c,fan_speed_rpm,network_interfaces\r\n");
             foreach (var sample in samples)
             {
                 var adapters = sample.NetworkInterfaces is null
@@ -594,6 +597,7 @@ public sealed partial class MainWindow : Window
                     .Append(sample.GpuMemoryTotalBytes?.ToString(CultureInfo.InvariantCulture) ?? "").Append(',')
                     .Append(CsvNumber(sample.GpuTemperatureCelsius)).Append(',')
                     .Append(CsvNumber(sample.CpuTemperatureCelsius)).Append(',')
+                    .Append(CsvNumber(sample.FanSpeedRpm)).Append(',')
                     .Append(CsvEscape(adapters)).Append("\r\n");
             }
 
@@ -609,6 +613,170 @@ public sealed partial class MainWindow : Window
     private static string CsvNumber(double? value) => value?.ToString("0.##", CultureInfo.InvariantCulture) ?? "";
 
     private static string CsvEscape(string value) => $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+
+    private async Task GeneratePerformanceReportAsync()
+    {
+        if (!IsProFeatureEnabled(ProductFeatures.PerformanceReports))
+        {
+            await ShowProUpgradeDialogAsync("Le rapport de performances imprimable");
+            return;
+        }
+
+        var range = GetHistoryRange();
+        var samples = _premiumHistory.GetLatest(range);
+        if (samples.Count == 0)
+        {
+            await ShowMessageDialogAsync("Aucun relevé pour ce rapport", "L’historique local ne contient pas encore de mesures pour cette période. Laisse la surveillance active puis réessaie.");
+            return;
+        }
+
+        try
+        {
+            var picker = new FileSavePicker();
+            picker.FileTypeChoices.Add("Rapport HTML", new List<string> { ".html" });
+            picker.SuggestedFileName = $"PCMonitorPro-rapport-{DateTime.Now:yyyyMMdd-HHmm}.html";
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+            var file = await picker.PickSaveFileAsync();
+            if (file is null)
+            {
+                return;
+            }
+
+            var report = BuildPerformanceReportHtml(samples, range);
+            await FileIO.WriteTextAsync(file, report);
+            await ShowMessageDialogAsync("Rapport créé", $"Le rapport est enregistré dans {file.Name}. Ouvre-le dans un navigateur pour le consulter ou l’imprimer en PDF.");
+        }
+        catch (Exception exception)
+        {
+            await ShowMessageDialogAsync("Création du rapport impossible", $"Le rapport n’a pas pu être enregistré. {exception.Message}");
+        }
+    }
+
+    private static string BuildPerformanceReportHtml(IReadOnlyList<MetricSample> samples, TimeSpan range)
+    {
+        var first = samples.Min(sample => sample.CapturedAt).ToLocalTime();
+        var last = samples.Max(sample => sample.CapturedAt).ToLocalTime();
+        var generated = DateTime.Now;
+        var rows = new (string Label, string Value)[]
+        {
+            ("Processeur", SummarizeMetric(samples, sample => sample.CpuUsagePercent, "%")),
+            ("Mémoire", SummarizeMetric(samples, sample => sample.MemoryUsagePercent, "%")),
+            ("Réception réseau", SummarizeMetric(samples, sample => sample.DownloadBytesPerSecond, " Ko/s", 1024)),
+            ("Envoi réseau", SummarizeMetric(samples, sample => sample.UploadBytesPerSecond, " Ko/s", 1024)),
+            ("Lecture disque", SummarizeMetric(samples, sample => sample.DiskReadBytesPerSecond, " Ko/s", 1024)),
+            ("Écriture disque", SummarizeMetric(samples, sample => sample.DiskWriteBytesPerSecond, " Ko/s", 1024)),
+            ("Charge GPU", SummarizeMetric(samples, sample => sample.GpuLoadPercent, "%")),
+            ("Mémoire vidéo utilisée", SummarizeMetric(samples, sample => ToGigabytes(sample.GpuMemoryUsedBytes), " Go")),
+            ("Mémoire vidéo totale", SummarizeMetric(samples, sample => ToGigabytes(sample.GpuMemoryTotalBytes), " Go")),
+            ("Température CPU", SummarizeMetric(samples, sample => sample.CpuTemperatureCelsius, " °C")),
+            ("Température GPU", SummarizeMetric(samples, sample => sample.GpuTemperatureCelsius, " °C")),
+            ("Vitesse du ventilateur", SummarizeMetric(samples, sample => sample.FanSpeedRpm, " tr/min"))
+        };
+
+        var html = new StringBuilder();
+        html.AppendLine("<!doctype html>")
+            .AppendLine("<html lang=\"fr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">")
+            .AppendLine("<title>Rapport PC Monitor Pro</title>")
+            .AppendLine("<style>body{font:16px/1.5 Segoe UI,Arial,sans-serif;color:#182230;background:#f3f6fa;margin:0;padding:32px}.sheet{max-width:920px;margin:auto;background:white;padding:36px;border-radius:18px;box-shadow:0 8px 32px #18304a18}h1{margin:0;color:#123b53}h2{margin-top:32px;color:#185d68}.muted{color:#607080}.facts{display:flex;gap:14px;flex-wrap:wrap;margin:20px 0}.fact{background:#f2f7f8;padding:14px 18px;border-radius:10px;min-width:150px}.fact b{display:block;color:#123b53}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{text-align:left;padding:12px;border-bottom:1px solid #e6ebef}th{width:30%;color:#33495a}svg{width:100%;height:auto;background:#fbfcfd;border:1px solid #e6ebef;border-radius:12px}.legend{display:flex;gap:22px;margin:10px 0}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}@media print{body{background:white;padding:0}.sheet{box-shadow:none;max-width:none;padding:0}.no-print{display:none}}</style>")
+            .AppendLine("</head><body><main class=\"sheet\">")
+            .AppendLine("<h1>Rapport de performances</h1><p class=\"muted\">PC Monitor Pro Premium · données locales de cet appareil</p>")
+            .Append("<div class=\"facts\"><div class=\"fact\"><span>Période demandée</span><b>").Append(WebUtility.HtmlEncode(FormatHistoryRange(range))).Append("</b></div>")
+            .Append("<div class=\"fact\"><span>Relevés utilisés</span><b>").Append(samples.Count.ToString("N0", CultureInfo.GetCultureInfo("fr-FR"))).Append("</b></div>")
+            .Append("<div class=\"fact\"><span>Du</span><b>").Append(WebUtility.HtmlEncode(first.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.GetCultureInfo("fr-FR")))).Append("</b></div>")
+            .Append("<div class=\"fact\"><span>Au</span><b>").Append(WebUtility.HtmlEncode(last.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.GetCultureInfo("fr-FR")))).Append("</b></div></div>")
+            .AppendLine("<h2>Résumé des mesures</h2><p class=\"muted\">Les valeurs indiquent le minimum, la moyenne et le maximum des relevés collectés.</p><table><tbody>");
+
+        foreach (var row in rows)
+        {
+            html.Append("<tr><th scope=\"row\">").Append(WebUtility.HtmlEncode(row.Label)).Append("</th><td>")
+                .Append(WebUtility.HtmlEncode(row.Value)).AppendLine("</td></tr>");
+        }
+
+        html.AppendLine("</tbody></table><h2>Évolution CPU et mémoire</h2>")
+            .AppendLine("<div class=\"legend\"><span><i class=\"dot\" style=\"background:#129b82\"></i>CPU</span><span><i class=\"dot\" style=\"background:#527ee8\"></i>Mémoire</span></div>")
+            .Append(BuildReportTrendSvg(samples))
+            .Append("<p class=\"muted\">Rapport créé le ").Append(WebUtility.HtmlEncode(generated.ToString("dd/MM/yyyy à HH:mm:ss", CultureInfo.GetCultureInfo("fr-FR")))).AppendLine(". Les capteurs matériels peuvent être absents selon le PC et ses pilotes. Les données affichées sont issues de l’historique local et ne sont pas transmises au développeur.</p>")
+            .AppendLine("<p class=\"no-print muted\">Pour obtenir un PDF, utilise la fonction Imprimer de ton navigateur et choisis « Enregistrer au format PDF ».</p>")
+            .AppendLine("</main></body></html>");
+
+        return html.ToString();
+    }
+
+    private static string SummarizeMetric(IEnumerable<MetricSample> samples, Func<MetricSample, double?> selector, string unit, double divisor = 1)
+    {
+        var values = samples.Select(selector)
+            .Where(value => value is double number && double.IsFinite(number))
+            .Select(value => value!.Value / divisor)
+            .ToArray();
+        if (values.Length == 0)
+        {
+            return "Capteur non disponible";
+        }
+
+        var culture = CultureInfo.GetCultureInfo("fr-FR");
+        return $"Min. {values.Min().ToString("0.##", culture)}{unit} · moy. {values.Average().ToString("0.##", culture)}{unit} · max. {values.Max().ToString("0.##", culture)}{unit} · {values.Length:N0} relevés";
+    }
+
+    private static double? ToGigabytes(ulong? bytes) => bytes is ulong value ? value / 1_073_741_824d : null;
+
+    private static string BuildReportTrendSvg(IReadOnlyList<MetricSample> samples)
+    {
+        const double width = 760;
+        const double height = 230;
+        const double left = 42;
+        const double right = 18;
+        const double top = 14;
+        const double bottom = 30;
+        var chartHeight = height - top - bottom;
+        var chartWidth = width - left - right;
+        var svg = new StringBuilder($"<svg role=\"img\" aria-label=\"Évolution du processeur et de la mémoire\" viewBox=\"0 0 {width:0} {height:0}\" xmlns=\"http://www.w3.org/2000/svg\">");
+        for (var tick = 0; tick <= 100; tick += 25)
+        {
+            var y = top + chartHeight * (1 - tick / 100d);
+            svg.Append("<line x1=\"").Append(left).Append("\" y1=\"").Append(y.ToString("0.##", CultureInfo.InvariantCulture))
+                .Append("\" x2=\"").Append(width - right).Append("\" y2=\"").Append(y.ToString("0.##", CultureInfo.InvariantCulture))
+                .AppendLine("\" stroke=\"#e4eaf0\"/><text x=\"8\" y=\"")
+                .Append((y + 4).ToString("0.##", CultureInfo.InvariantCulture)).Append("\" fill=\"#657586\" font-size=\"12\">")
+                .Append(tick).AppendLine("%</text>");
+        }
+
+        AppendTrendLine(svg, samples, sample => sample.CpuUsagePercent, "#129b82", left, top, chartWidth, chartHeight);
+        AppendTrendLine(svg, samples, sample => sample.MemoryUsagePercent, "#527ee8", left, top, chartWidth, chartHeight);
+        svg.AppendLine("</svg>");
+        return svg.ToString();
+    }
+
+    private static void AppendTrendLine(StringBuilder svg, IReadOnlyList<MetricSample> samples, Func<MetricSample, double?> selector, string color, double left, double top, double chartWidth, double chartHeight)
+    {
+        if (samples.Count == 0)
+        {
+            return;
+        }
+
+        var points = new List<string>();
+        for (var index = 0; index < samples.Count; index++)
+        {
+            var value = selector(samples[index]);
+            if (value is not double number || !double.IsFinite(number))
+            {
+                continue;
+            }
+
+            var x = left + (samples.Count == 1 ? chartWidth / 2 : chartWidth * index / (samples.Count - 1));
+            var y = top + chartHeight * (1 - Math.Clamp(number, 0, 100) / 100d);
+            points.Add($"{x.ToString("0.##", CultureInfo.InvariantCulture)},{y.ToString("0.##", CultureInfo.InvariantCulture)}");
+        }
+
+        if (points.Count > 0)
+        {
+            svg.Append("<polyline fill=\"none\" stroke=\"").Append(color).Append("\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\" points=\"")
+                .Append(string.Join(" ", points)).AppendLine("\"/>");
+        }
+    }
+
+    private static string FormatHistoryRange(TimeSpan range) => range.TotalHours >= 24
+        ? "24 dernières heures"
+        : range.TotalHours >= 6 ? "6 dernières heures" : "Dernière heure";
 
     private void OnHistoryCanvasSizeChanged(object sender, SizeChangedEventArgs args) => UpdateHistoryView();
 
@@ -940,6 +1108,8 @@ public sealed partial class MainWindow : Window
                 ProductFeatures.AdvancedCharts => "Les graphiques avancés",
                 ProductFeatures.CsvExport => "L’export CSV",
                 ProductFeatures.HardwareSensors => "Les capteurs matériels",
+                ProductFeatures.ExtendedRefreshInterval => "Les intervalles étendus",
+                ProductFeatures.PerformanceReports => "Les rapports de performances",
                 _ => "Les alertes personnalisées"
             };
             await ShowProUpgradeDialogAsync(title);
@@ -953,6 +1123,12 @@ public sealed partial class MainWindow : Window
                 break;
             case ProductFeatures.CsvExport:
                 await ExportHistoryCsvAsync();
+                break;
+            case ProductFeatures.PerformanceReports:
+                await GeneratePerformanceReportAsync();
+                break;
+            case ProductFeatures.ExtendedRefreshInterval:
+                RootNavigation.SelectedItem = RootNavigation.MenuItems.OfType<NavigationViewItem>().First(item => item.Tag?.ToString() == "settings");
                 break;
             default:
                 RootNavigation.SelectedItem = RootNavigation.MenuItems.OfType<NavigationViewItem>().First(item => item.Tag?.ToString() == "history");
@@ -983,6 +1159,21 @@ public sealed partial class MainWindow : Window
         {
             await _premiumHistory.LoadAsync();
         }
+        var savedInterval = _settings.RefreshIntervalSeconds;
+        if (savedInterval > 10)
+        {
+            if (IsProFeatureEnabled(ProductFeatures.ExtendedRefreshInterval))
+            {
+                _timer.Interval = TimeSpan.FromSeconds(savedInterval);
+                SelectRefreshInterval(savedInterval);
+            }
+            else
+            {
+                _settings.RefreshIntervalSeconds = 2;
+                _timer.Interval = TimeSpan.FromSeconds(2);
+                SelectRefreshInterval(2);
+            }
+        }
         UpdateLicenseDependentUi();
         UpdateHistoryView();
     }
@@ -1012,7 +1203,7 @@ public sealed partial class MainWindow : Window
         {
             _alertNotifications.Unregister();
             AlertsStatusText.Text = StoreCatalog.IsPackaged
-                ? "Les alertes, l’historique 24 h, l’export CSV et les capteurs matériels sont réservés à Premium (PRO). Active une option pour consulter l’offre Store."
+                ? "Les alertes, l’historique 24 h, les graphiques, les exports, les rapports, les intervalles étendus et les capteurs matériels sont réservés à Premium (PRO). Active une option pour consulter l’offre Store."
                 : "Les fonctions Premium (PRO) sont réservées à la version Microsoft Store. Depuis l’EXE, elles renvoient vers la fiche Store.";
         }
     }
@@ -1038,9 +1229,10 @@ public sealed partial class MainWindow : Window
             var destination = featureName.Contains("historique", StringComparison.OrdinalIgnoreCase) ||
                               featureName.Contains("CSV", StringComparison.OrdinalIgnoreCase) ||
                               featureName.Contains("capteurs", StringComparison.OrdinalIgnoreCase) ||
+                              featureName.Contains("rapport", StringComparison.OrdinalIgnoreCase) ||
                               featureName.Contains("graphiques", StringComparison.OrdinalIgnoreCase)
                 ? "history"
-                : "alerts";
+                : featureName.Contains("intervalle", StringComparison.OrdinalIgnoreCase) ? "settings" : "alerts";
             RootNavigation.SelectedItem = RootNavigation.MenuItems
                 .OfType<NavigationViewItem>()
                 .First(item => item.Tag?.ToString() == destination);
@@ -1239,11 +1431,23 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void OnRefreshIntervalChanged(object sender, SelectionChangedEventArgs args)
+    private async void OnRefreshIntervalChanged(object sender, SelectionChangedEventArgs args)
     {
         if (_isUpdatingInterval || SettingsRefreshIntervalComboBox.SelectedItem is not ComboBoxItem item ||
             !int.TryParse(item.Tag?.ToString(), out var seconds))
         {
+            return;
+        }
+
+        if (seconds > 10 && !IsProFeatureEnabled(ProductFeatures.ExtendedRefreshInterval))
+        {
+            var fallback = _settings.RefreshIntervalSeconds <= 10 ? _settings.RefreshIntervalSeconds : 2;
+            if (_settings.RefreshIntervalSeconds > 10)
+            {
+                _settings.RefreshIntervalSeconds = fallback;
+            }
+            SelectRefreshInterval(fallback);
+            await ShowProUpgradeDialogAsync("Les intervalles de mise à jour de 15, 30 et 60 secondes");
             return;
         }
 

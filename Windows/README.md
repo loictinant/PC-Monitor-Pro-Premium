@@ -1,8 +1,8 @@
 # PC Monitor Pro Premium
 
-Moniteur système local pour Windows 10/11, construit en C# avec WinUI 3. La version gratuite suit CPU, mémoire, volumes, activité disque et réseau. L’achat unique Microsoft Store débloque l’historique local 24 h, les graphiques avancés, l’export CSV, les alertes configurables et les capteurs matériels pris en charge.
+Moniteur système local pour Windows 10/11, construit en C# avec WinUI 3. La version gratuite suit CPU, mémoire, volumes, activité disque et réseau. L’achat unique Microsoft Store débloque l’historique local 24 h, les graphiques avancés, l’export CSV, les rapports HTML imprimables, les intervalles prolongés, les alertes configurables et les capteurs matériels pris en charge.
 
-## Version 0.3.0
+## Version 0.4.0
 
 ### Gratuit
 
@@ -17,6 +17,8 @@ Moniteur système local pour Windows 10/11, construit en C# avec WinUI 3. La ver
 - Alertes personnalisées CPU, mémoire et espace disque, avec délai de déclenchement, délai entre répétitions et heures calmes facultatives (22 h–7 h).
 - Historique local jusqu’à 24 heures et graphiques CPU, mémoire, réseau et disque sur 1 h, 6 h ou 24 h.
 - Export CSV de la période sélectionnée.
+- Rapports HTML locaux avec statistiques min./moy./max. et courbe CPU/mémoire; impression en PDF depuis un navigateur.
+- Rafraîchissement étendu à 15, 30 ou 60 secondes.
 - Charge GPU, mémoire vidéo, températures CPU/GPU et ventilateurs lorsque le matériel, les pilotes et les permissions les exposent.
 
 L’EXE autonome est gratuit et dirige vers la fiche Store pour l’offre Premium. Les fonctions GPU et température ne sont pas garanties sur tous les PC; l’application n’élève pas ses droits automatiquement. Les relevés et l’historique restent sur l’appareil.

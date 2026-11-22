@@ -39,5 +39,6 @@ public sealed class MetricsHistory
         snapshot.Hardware.GpuMemoryTotalBytes,
         snapshot.Hardware.GpuTemperatureCelsius,
         snapshot.Hardware.CpuTemperatureCelsius,
-        snapshot.NetworkInterfaces);
+        snapshot.NetworkInterfaces,
+        snapshot.Hardware.FanSpeedRpm);
 }
